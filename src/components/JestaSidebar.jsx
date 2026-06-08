@@ -111,7 +111,7 @@ function EmployerNav({ onGoToDashboard, onOpenCreate }) {
   );
 }
 
-export default function JestaSidebar({ isOpen, onClose, onGoToSchedule, onOpenCreateModal, onGoToEmployerDashboard, onOpenProfile }) {
+export default function JestaSidebar({ isOpen, onClose, onGoToSchedule, onOpenCreateModal, onGoToEmployerDashboard, onSwitchMode, onOpenProfile }) {
   const [isEmployer, setIsEmployer] = useState(false);
 
   return (
@@ -159,7 +159,11 @@ export default function JestaSidebar({ isOpen, onClose, onGoToSchedule, onOpenCr
 
             <Divider />
             <div style={{ padding: "4px 14px 6px" }}>
-              <ModeToggle isEmployer={isEmployer} onToggle={setIsEmployer} />
+              <ModeToggle isEmployer={isEmployer} onToggle={(val) => {
+              setIsEmployer(val);
+              onSwitchMode?.(val ? "employer" : "worker");
+              onClose();
+            }} />
             </div>
             <Divider />
 
