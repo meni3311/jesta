@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  WORKER    // teenager looking for gigs
+  EMPLOYER  // business / individual posting gigs
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  phone         String?
+  passwordHash  String
+  role          UserRole
+  fullName      String
+  avatarUrl     String?
+  rating        Float    @default(0)
+  completedJobs Int      @default(0)
+  isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  postedJobs    Job[]          @relation("EmployerJobs")
+  applications  Application[]
+
+  @@map("users")
+}
+
+model Job {
+  id          String   @id @default(uuid())
+  employerId  String
+  title       String
+  description String?
+  pay         Float    // hourly rate (NIS)
+  address     String
+  lat         Float
+  lng         Float
+  startTime   DateTime
+  endTime     DateTime
+  isActive    Boolean  @default(true)
+  perks       String[] // e.g. ["מזומן בסוף המשמרת", "אוכל כלול"]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  employer     User          @relation("EmployerJobs", fields: [employerId], references: [id])
+  applications Application[]
+
+  @@map("jobs")
+}
+
+model Application {
+  id        String            @id @default(uuid())
+  jobId     String
+  workerId  String
+  status    ApplicationStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  // Relations
+  job     Job  @relation(fields: [jobId], references: [id])
+  worker  User @relation(fields: [workerId], references: [id])
+
+  @@unique([jobId, workerId])
+  @@map("applications")
+}
