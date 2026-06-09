@@ -1,10 +1,11 @@
 import {
   Controller, Get, Post, Param,
-  Body, Query, Req,
+  Body, Query, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { JobsService }   from './jobs.service';
 import { CreateJobDto }  from './dto/create-job.dto';
 import { QueryJobsDto }  from './dto/query-jobs.dto';
+import { ApplyJobDto }   from './dto/apply-job.dto';
 
 @Controller('jobs')
 export class JobsController {
@@ -44,5 +45,21 @@ export class JobsController {
     @Body() dto: CreateJobDto,
   ) {
     return this.jobsService.create(employerId, dto);
+  }
+
+  /**
+   * POST /api/jobs/:id/apply
+   * Worker one-tap applies to a job ("אני בפנים! ⚡").
+   * Body: { workerId: string }
+   *
+   * NOTE: Replace workerId body param with JWT guard (req.user.sub) in production.
+   */
+  @Post(':id/apply')
+  @HttpCode(HttpStatus.CREATED)
+  apply(
+    @Param('id') jobId: string,
+    @Body() dto: ApplyJobDto,
+  ) {
+    return this.jobsService.apply(jobId, dto);
   }
 }

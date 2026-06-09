@@ -1,5 +1,5 @@
 import {
-  IsEmail, IsString, IsEnum,
+  IsEmail, IsString, IsEnum, IsUrl,
   MinLength, MaxLength, IsMobilePhone, IsOptional,
 } from 'class-validator';
 import { UserRole } from '@prisma/client';
@@ -23,4 +23,9 @@ export class RegisterDto {
   @IsMobilePhone('he-IL')
   @IsOptional()
   phone?: string;
+
+  /** Public URL of avatar already uploaded to Supabase Storage by the client */
+  @IsUrl()
+  @IsOptional()
+  avatarUrl?: string;
 }

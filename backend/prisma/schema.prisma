@@ -34,9 +34,11 @@ model User {
   avatarUrl     String?
   rating        Float    @default(0)
   completedJobs Int      @default(0)
-  isVerified    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isVerified               Boolean   @default(false)
+  emailVerificationToken   String?   // random hex token (stored plain, short-lived)
+  emailVerificationExpiry  DateTime? // token expires after 24 h
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   // Relations
   postedJobs    Job[]          @relation("EmployerJobs")
