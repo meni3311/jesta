@@ -11,7 +11,6 @@ export class PrismaService
   constructor() {
     super({
       log: [
-        { emit: 'event', level: 'query' },
         { emit: 'stdout', level: 'info' },
         { emit: 'stdout', level: 'warn' },
         { emit: 'stdout', level: 'error' },
@@ -20,8 +19,18 @@ export class PrismaService
   }
 
   async onModuleInit() {
-    await this.$connect();
-    this.logger.log('Database connected ✓');
+    try {
+      await this.$connect();
+      this.logger.log('✓ Database connected');
+    } catch (err) {
+      this.logger.error(
+        '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+        ' DB connection failed — API still starting.\n' +
+        ' Check backend/.env  (see .env.example for help).\n' +
+        ' Error: ' + (err as Error).message + '\n' +
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      );
+    }
   }
 
   async onModuleDestroy() {

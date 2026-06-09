@@ -1,5 +1,5 @@
 {
-  "name": "gesta",
+  "name": "jesta-frontend",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.43.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.383.0",
     "react": "^18.3.1",

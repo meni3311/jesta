@@ -1,17 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageCircle } from "lucide-react";
 
-import { INITIAL_JOBS }    from "./components/JestaJobsFeed";
-import JestaJobsFeed       from "./components/JestaJobsFeed";
-import JestaJobDetails     from "./components/JestaJobDetails";
-import JestaPending        from "./components/JestaPending";
-import JestaSchedule       from "./components/JestaSchedule";
-import EmployerDashboard   from "./components/EmployerDashboard";
-import JestaSidebar        from "./components/JestaSidebar";
-import JestaCreateModal    from "./components/JestaCreateModal";
-import JestaPublicProfile  from "./components/JestaPublicProfile";
-import JestaChat           from "./components/JestaChat";
+import { supabase }       from "./lib/supabaseClient";
+import AuthScreen         from "./components/AuthScreen";
+import { INITIAL_JOBS }   from "./components/JestaJobsFeed";
+import JestaJobsFeed      from "./components/JestaJobsFeed";
+import JestaJobDetails    from "./components/JestaJobDetails";
+import JestaPending       from "./components/JestaPending";
+import JestaSchedule      from "./components/JestaSchedule";
+import EmployerDashboard  from "./components/EmployerDashboard";
+import JestaSidebar       from "./components/JestaSidebar";
+import JestaCreateModal   from "./components/JestaCreateModal";
+import JestaPublicProfile from "./components/JestaPublicProfile";
+import JestaChat          from "./components/JestaChat";
 import JestaChatInbox, { TOTAL_UNREAD } from "./components/JestaChatInbox";
 
 const slide = {
@@ -29,26 +31,49 @@ const slideUp = {
 const tx   = { type: "tween",  ease: [0.32, 0, 0.1, 1], duration: 0.38 };
 const txUp = { type: "spring", stiffness: 320, damping: 34 };
 
+// Phone shell shared by all screens
+function PhoneShell({ children }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "center", alignItems: "flex-start",
+      minHeight: "100vh", background: "#06030f", padding: "24px 0", overflow: "hidden",
+    }}>
+      <div style={{
+        width: 360, height: 780, borderRadius: 44, overflow: "hidden",
+        position: "relative", border: "1.5px solid #1e1040",
+        boxShadow: "0 0 0 7px #0d0824, 0 40px 80px rgba(0,0,0,0.8)",
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  // ── Jobs ───────────────────────────────────────────────────────────────────
-  const [jobs, setJobs] = useState(INITIAL_JOBS);
+  // ── Auth gate ──────────────────────────────────────────────────────────────
+  // null = checking, false = signed-out, "guest" = guest, Session = signed-in
+  const [authState, setAuthState] = useState(null);
 
-  // ── Mode: "worker" | "employer"  ──────────────────────────────────────────
-  const [mode, setMode] = useState("worker");
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthState(prev => prev === "guest" ? "guest" : (session ?? false));
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setAuthState(prev => prev === "guest" ? "guest" : (session ?? false));
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
-  // ── Approval / rejection state ────────────────────────────────────────────
+  // ── App state (all hooks must be declared unconditionally) ─────────────────
+  const [jobs, setJobs]   = useState(INITIAL_JOBS);
+  const [mode, setMode]   = useState("worker");
+
   const [approvedWorkerIds, setApprovedWorkerIds] = useState(new Set());
   const [rejectedWorkerIds, setRejectedWorkerIds] = useState(new Set());
-
-  const approveWorker = (id) =>
-    setApprovedWorkerIds(prev => new Set([...prev, id]));
-  const rejectWorker  = (id) =>
-    setRejectedWorkerIds(prev => new Set([...prev, id]));
-
+  const approveWorker = (id) => setApprovedWorkerIds(p => new Set([...p, id]));
+  const rejectWorker  = (id) => setRejectedWorkerIds(p => new Set([...p, id]));
   const cinemaApproved = approvedWorkerIds.has("w-1");
 
-  // ── Worker screen routing ──────────────────────────────────────────────────
-  // "feed" | "details" | "pending" | "schedule"
   const [screen,   setScreen]   = useState("feed");
   const [selected, setSelected] = useState(null);
   const [dir,      setDir]      = useState(1);
@@ -56,10 +81,8 @@ export default function App() {
   const [sidebarOpen,     setSidebarOpen]     = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  // ── Profile modal ──────────────────────────────────────────────────────────
   const [profileModal, setProfileModal] = useState({ isOpen: false, type: "worker", data: null });
 
-  // ── Chat state ─────────────────────────────────────────────────────────────
   const [chatModal, setChatModal] = useState({ isOpen: false, contract: null, viewerRole: "worker" });
   const [inboxOpen, setInboxOpen] = useState(false);
 
@@ -78,7 +101,6 @@ export default function App() {
   };
   const closeProfile = () => setProfileModal(p => ({ ...p, isOpen: false }));
 
-  // ── Navigation (worker mode only) ─────────────────────────────────────────
   const goTo = (scr, job = null, direction = 1) => {
     setSelected(job); setDir(direction); setScreen(scr); setSidebarOpen(false);
   };
@@ -87,16 +109,14 @@ export default function App() {
   const goToSchedule  = ()    => goTo("schedule", null, 1);
   const goBack        = ()    => goTo("feed", null, -1);
 
-  // ── Mode switch ────────────────────────────────────────────────────────────
   const switchMode = (newMode) => {
     setMode(newMode);
     setSidebarOpen(false);
     if (newMode === "worker") setScreen("feed");
   };
 
-  // ── Publish job ────────────────────────────────────────────────────────────
   const handlePublish = (newJob) => {
-    setJobs(prev => [newJob, ...prev]);
+    setJobs(p => [newJob, ...p]);
     setCreateModalOpen(false);
   };
   const handleOpenCreate = () => {
@@ -106,20 +126,41 @@ export default function App() {
 
   const pushEnter = dir === -1 ? slide.enterRight : slide.enterLeft;
   const pushExit  = dir === 1  ? slide.exitLeft   : slide.exitRight;
+  const showFab   = !chatModal.isOpen && !inboxOpen && !sidebarOpen;
 
-  // FAB hidden when overlays are open
-  const showFab = !chatModal.isOpen && !inboxOpen && !sidebarOpen;
+  // ── Auth gate rendering (after all hooks) ──────────────────────────────────
+  if (authState === null) {
+    return (
+      <div style={{
+        display: "flex", justifyContent: "center", alignItems: "center",
+        minHeight: "100vh", background: "#06030f",
+      }}>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 0.85, repeat: Infinity, ease: "linear" }}
+          style={{
+            width: 28, height: 28, borderRadius: "50%",
+            border: "3px solid #7c3aed", borderTopColor: "transparent",
+          }}
+        />
+      </div>
+    );
+  }
 
-  // ── Employer full-screen view ──────────────────────────────────────────────
+  const isAuthed = authState === "guest" || (authState && authState !== false);
+
+  if (!isAuthed) {
+    return (
+      <PhoneShell>
+        <AuthScreen onGuest={() => setAuthState("guest")} />
+      </PhoneShell>
+    );
+  }
+
+  // ── Employer view ──────────────────────────────────────────────────────────
   const employerView = (
-    <motion.div
-      key="employer"
-      style={{ position: "absolute", inset: 0 }}
-      initial={slideUp.enter}
-      animate={slideUp.center}
-      exit={slideUp.exit}
-      transition={txUp}
-    >
+    <motion.div key="employer" style={{ position: "absolute", inset: 0 }}
+      initial={slideUp.enter} animate={slideUp.center} exit={slideUp.exit} transition={txUp}>
       <EmployerDashboard
         onOpenCreate={handleOpenCreate}
         onApproveWorker={approveWorker}
@@ -133,7 +174,7 @@ export default function App() {
     </motion.div>
   );
 
-  // ── Worker screen views ────────────────────────────────────────────────────
+  // ── Worker view ────────────────────────────────────────────────────────────
   const workerView = (
     <>
       {screen === "feed" && (
@@ -173,117 +214,95 @@ export default function App() {
     </>
   );
 
+  // ── Main render ────────────────────────────────────────────────────────────
   return (
-    <div style={{
-      display: "flex", justifyContent: "center", alignItems: "flex-start",
-      minHeight: "100vh", background: "#06030f", padding: "24px 0", overflow: "hidden",
-    }}>
-      <div style={{
-        width: 360, height: 780, borderRadius: 44, overflow: "hidden",
-        position: "relative", border: "1.5px solid #1e1040",
-        boxShadow: "0 0 0 7px #0d0824, 0 40px 80px rgba(0,0,0,0.8)",
-      }}>
+    <PhoneShell>
+      <AnimatePresence mode="wait" initial={false}>
+        {mode === "employer" ? employerView : workerView}
+      </AnimatePresence>
 
-        {/* ── Main screen area ── */}
-        <AnimatePresence mode="wait" initial={false}>
-          {mode === "employer" ? employerView : workerView}
-        </AnimatePresence>
-
-        {/* ── Floating Chat FAB ── */}
-        <AnimatePresence>
-          {showFab && (
-            <motion.div
-              key="chat-fab"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 420, damping: 28 }}
-              style={{ position: "absolute", bottom: 28, left: 18, zIndex: 6000 }}
-            >
-              {TOTAL_UNREAD > 0 && (
-                <motion.div
-                  animate={{ scale: [1, 1.55, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                  style={{
-                    position: "absolute", inset: 0, borderRadius: "50%",
-                    background: "linear-gradient(135deg,#9333ea,#ec4899)",
-                    pointerEvents: "none",
-                  }}
-                />
-              )}
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => setInboxOpen(true)}
+      {/* Floating Chat FAB */}
+      <AnimatePresence>
+        {showFab && (
+          <motion.div key="chat-fab"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 28 }}
+            style={{ position: "absolute", bottom: 28, left: 18, zIndex: 6000 }}>
+            {TOTAL_UNREAD > 0 && (
+              <motion.div
+                animate={{ scale: [1, 1.55, 1], opacity: [0.5, 0, 0.5] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
                 style={{
-                  width: 52, height: 52, borderRadius: "50%", border: "none",
+                  position: "absolute", inset: 0, borderRadius: "50%",
                   background: "linear-gradient(135deg,#9333ea,#ec4899)",
-                  boxShadow: "0 6px 20px rgba(147,51,234,0.45)",
+                  pointerEvents: "none",
+                }} />
+            )}
+            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+              onClick={() => setInboxOpen(true)}
+              style={{
+                width: 52, height: 52, borderRadius: "50%", border: "none",
+                background: "linear-gradient(135deg,#9333ea,#ec4899)",
+                boxShadow: "0 6px 20px rgba(147,51,234,0.45)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", position: "relative",
+              }}>
+              <MessageCircle size={22} color="#fff" strokeWidth={2} />
+              {TOTAL_UNREAD > 0 && (
+                <div style={{
+                  position: "absolute", top: -3, right: -3,
+                  minWidth: 18, height: 18, borderRadius: 9,
+                  background: "#fff", border: "2px solid #9333ea",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", position: "relative",
-                }}
-              >
-                <MessageCircle size={22} color="#fff" strokeWidth={2} />
-                {TOTAL_UNREAD > 0 && (
-                  <div style={{
-                    position: "absolute", top: -3, right: -3,
-                    minWidth: 18, height: 18, borderRadius: 9,
-                    background: "#fff", border: "2px solid #9333ea",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9, fontWeight: 900, color: "#9333ea",
-                    fontFamily: "'Heebo',system-ui,sans-serif",
-                  }}>
-                    {TOTAL_UNREAD}
-                  </div>
-                )}
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  fontSize: 9, fontWeight: 900, color: "#9333ea",
+                  fontFamily: "'Heebo',system-ui,sans-serif",
+                }}>
+                  {TOTAL_UNREAD}
+                </div>
+              )}
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* ── Sidebar ── */}
-        <JestaSidebar
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          onGoToSchedule={() => { switchMode("worker"); goToSchedule(); }}
-          onOpenCreateModal={handleOpenCreate}
-          onGoToEmployerDashboard={() => switchMode("employer")}
-          onSwitchMode={switchMode}
-          onOpenProfile={openProfile}
-        />
+      <JestaSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onGoToSchedule={() => { switchMode("worker"); goToSchedule(); }}
+        onOpenCreateModal={handleOpenCreate}
+        onGoToEmployerDashboard={() => switchMode("employer")}
+        onSwitchMode={switchMode}
+        onOpenProfile={openProfile}
+      />
 
-        {/* ── Create modal ── */}
-        <JestaCreateModal
-          isOpen={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-          onPublish={handlePublish}
-        />
+      <JestaCreateModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onPublish={handlePublish}
+      />
 
-        {/* ── Public profile ── */}
-        <JestaPublicProfile
-          isOpen={profileModal.isOpen}
-          onClose={closeProfile}
-          type={profileModal.type}
-          userData={profileModal.data}
-        />
+      <JestaPublicProfile
+        isOpen={profileModal.isOpen}
+        onClose={closeProfile}
+        type={profileModal.type}
+        userData={profileModal.data}
+      />
 
-        {/* ── Chat inbox ── */}
-        <JestaChatInbox
-          isOpen={inboxOpen}
-          onClose={() => setInboxOpen(false)}
-          onOpenChat={openChatFromInbox}
-          viewerRole={mode === "employer" ? "employer" : "worker"}
-        />
+      <JestaChatInbox
+        isOpen={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        onOpenChat={openChatFromInbox}
+        viewerRole={mode === "employer" ? "employer" : "worker"}
+      />
 
-        {/* ── Chat overlay ── */}
-        <JestaChat
-          isOpen={chatModal.isOpen}
-          onClose={closeChat}
-          contract={chatModal.contract}
-          viewerRole={chatModal.viewerRole}
-        />
-
-      </div>
-    </div>
+      <JestaChat
+        isOpen={chatModal.isOpen}
+        onClose={closeChat}
+        contract={chatModal.contract}
+        viewerRole={chatModal.viewerRole}
+      />
+    </PhoneShell>
   );
 }

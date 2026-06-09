@@ -1,3 +1,8 @@
 node_modules
 dist
-.env.example
+.env
+.env.local
+.env
+backend/.env
+frontend/.env.local
+.agents
