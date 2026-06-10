@@ -35,11 +35,83 @@ export async function createJob(payload) {
 
 /**
  * One-tap apply ("אני בפנים! ⚡").
+ * workerId is read from the JWT on the backend — no body needed.
  * @param {string} jobId
- * @param {string} workerId
  */
-export async function applyToJob(jobId, workerId) {
-  const { data } = await api.post(`/jobs/${jobId}/apply`, { workerId });
+export async function applyToJob(jobId) {
+  const { data } = await api.post(`/jobs/${jobId}/apply`);
+  return data;
+}
+
+/**
+ * Fetch the logged-in employer's jobs with applicants.
+ * Returns Job[] each with an `applications` array of { id, status, worker }.
+ * Requires Bearer token (employer role).
+ */
+export async function getEmployerJobs() {
+  const { data } = await api.get('/jobs/employer');
+  return data;
+}
+
+/**
+ * Approve a worker for a job.
+ * Locks the job (removes from public feed) and creates a chat session.
+ * Returns { application, chat }.
+ * @param {string} jobId
+ * @param {string} appId  Application id
+ */
+export async function approveApplication(jobId, appId) {
+  const { data } = await api.patch(`/jobs/${jobId}/applications/${appId}/approve`);
+  return data;
+}
+
+/**
+ * Reject a worker's application.
+ * @param {string} jobId
+ * @param {string} appId
+ */
+export async function rejectApplication(jobId, appId) {
+  const { data } = await api.patch(`/jobs/${jobId}/applications/${appId}/reject`);
+  return data;
+}
+
+/**
+ * Fetch the logged-in worker's own applications ("my shifts").
+ * Returns Application[] with { status, job: { ...job, employer }, chat }.
+ * Requires Bearer token (worker role).
+ */
+export async function getMyApplications() {
+  const { data } = await api.get('/jobs/applications/me');
+  return data;
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
+/**
+ * List all chats the logged-in user participates in.
+ * Returns Chat[] with last message preview + job title.
+ */
+export async function getChats() {
+  const { data } = await api.get('/chats');
+  return data;
+}
+
+/**
+ * Fetch messages for a chat.
+ * @param {string} chatId
+ */
+export async function getChatMessages(chatId) {
+  const { data } = await api.get(`/chats/${chatId}/messages`);
+  return data;
+}
+
+/**
+ * Send a message to a chat.
+ * @param {string} chatId
+ * @param {string} text
+ */
+export async function sendChatMessage(chatId, text) {
+  const { data } = await api.post(`/chats/${chatId}/messages`, { text });
   return data;
 }
 
@@ -69,11 +141,22 @@ export async function verifyEmailOtp(email, code) {
 
 /**
  * Login via NestJS backend.
- * Returns { user, token }
+ * Returns { user, token } — or { pendingVerification: true, email } if the
+ * account hasn't completed OTP verification yet (a fresh code is auto-sent).
  * @param {{ email, password }} payload
  */
 export async function login(payload) {
   const { data } = await api.post('/auth/login', payload);
+  return data;
+}
+
+/**
+ * Re-send a 6-digit OTP to an unverified account.
+ * Always resolves 200 (doesn't reveal whether the email exists).
+ * @param {string} email
+ */
+export async function resendOtp(email) {
+  const { data } = await api.post('/auth/resend-otp', { email });
   return data;
 }
 

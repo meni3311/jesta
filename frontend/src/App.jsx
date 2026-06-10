@@ -178,12 +178,6 @@ export default function App() {
   // ── Core app state ─────────────────────────────────────────────────────────
   const [mode, setMode] = useState("worker");
 
-  const [approvedWorkerIds, setApprovedWorkerIds] = useState(new Set());
-  const [rejectedWorkerIds, setRejectedWorkerIds] = useState(new Set());
-  const approveWorker  = (id) => setApprovedWorkerIds(p => new Set([...p, id]));
-  const rejectWorker   = (id) => setRejectedWorkerIds(p => new Set([...p, id]));
-  const cinemaApproved = approvedWorkerIds.has("w-1");
-
   const [screen,   setScreen]   = useState("feed");
   const [selected, setSelected] = useState(null);
   const [dir,      setDir]      = useState(1);
@@ -244,12 +238,11 @@ export default function App() {
   const goToSchedule = ()    => goTo("schedule", null, 1);
   const goBack       = ()    => goTo("feed", null, -1);
 
-  // "אני בפנים! ⚡" — guarded + fires API
+  // "אני בפנים! ⚡" — guarded + fires API (workerId from JWT, no body needed)
   const goToPending = withAuth(async (job) => {
     goTo("pending", job, 1);                          // optimistic navigation
-    const userId = authState?.user?.id;
-    if (userId && job?.id) {
-      applyToJob(job.id, userId).catch((err) =>
+    if (job?.id) {
+      applyToJob(job.id).catch((err) =>
         console.warn("[Jesta] Apply error (non-fatal):", err.message),
       );
     }
@@ -278,9 +271,11 @@ export default function App() {
     if (newMode === "worker") setScreen("feed");
   };
 
+  // Called by JestaCreateModal after the real API call succeeds.
+  // newJob is the raw backend response — normaliseJob maps it to UI shape.
   const handlePublish = withAuth((newJob) => {
     setJobs(p => [normaliseJob(newJob, p.length), ...p]);
-    setCreateModalOpen(false);
+    // modal closes itself; nothing else to do here
   });
 
   const handleOpenCreate = withAuth(() => {
@@ -324,11 +319,8 @@ export default function App() {
     <motion.div key="employer" style={{ position: "absolute", inset: 0 }}
       initial={slideUp.enter} animate={slideUp.center} exit={slideUp.exit} transition={txUp}>
       <EmployerDashboard
+        user={authState?.user ?? null}
         onOpenCreate={handleOpenCreate}
-        onApproveWorker={approveWorker}
-        onRejectWorker={rejectWorker}
-        approvedWorkerIds={approvedWorkerIds}
-        rejectedWorkerIds={rejectedWorkerIds}
         onOpenProfile={openProfile}
         onOpenChat={(contract) => openChat(contract, "employer")}
         onOpenSidebar={() => setSidebarOpen(true)}
@@ -377,9 +369,8 @@ export default function App() {
           initial={slideUp.enter} animate={slideUp.center} exit={slideUp.exit} transition={txUp}>
           <JestaSchedule
             onBack={goBack}
-            isApproved={cinemaApproved}
-            onLocalApprove={() => approveWorker("w-1")}
             onOpenChat={(contract) => openChat(contract, "worker")}
+            user={authState?.user ?? null}
           />
         </motion.div>
       )}
@@ -473,6 +464,7 @@ export default function App() {
         onClose={closeChat}
         contract={chatModal.contract}
         viewerRole={chatModal.viewerRole}
+        currentUserId={authState?.user?.id ?? null}
       />
 
       {/* Guest prompt modal — rendered above everything */}

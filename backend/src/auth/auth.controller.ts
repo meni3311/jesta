@@ -3,6 +3,7 @@ import { AuthService }     from './auth.service';
 import { RegisterDto }     from './dto/register.dto';
 import { LoginDto }        from './dto/login.dto';
 import { VerifyEmailDto }  from './dto/verify-email.dto';
+import { ResendOtpDto }    from './dto/resend-otp.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -34,10 +35,23 @@ export class AuthController {
   /**
    * POST /api/auth/login
    * Validates credentials and returns { user, token }.
+   * If the account is unverified, re-sends an OTP and returns
+   * { pendingVerification: true, email } instead.
    */
   @Post('login')
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  /**
+   * POST /api/auth/resend-otp
+   * Body: { email } — re-issues a 6-digit OTP for unverified accounts.
+   * Always returns 200 (does not reveal whether the email exists).
+   */
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  resendOtp(@Body() dto: ResendOtpDto) {
+    return this.authService.resendOtp(dto.email);
   }
 }

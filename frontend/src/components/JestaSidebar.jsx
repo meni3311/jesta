@@ -32,7 +32,7 @@ function Divider() {
   return <div style={{ height: 1, background: BORDER, margin: "6px 0" }} />;
 }
 
-function LevelBar({ pct = 0 }) {
+function LevelBar({ pct = 0, completedJobs = 0 }) {
   const capped = Math.min(100, pct);
   return (
     <div style={{ marginTop: 10 }}>
@@ -45,7 +45,9 @@ function LevelBar({ pct = 0 }) {
           transition={{ duration: 1.1, delay: 0.3, ease: [0.25, 0, 0.2, 1] }}
           style={{ height: "100%", borderRadius: 3, background: "linear-gradient(90deg,#a78bfa,#fbbf24)" }} />
       </div>
-      <div style={{ fontSize: 10.5, color: MUTED, fontWeight: 500, marginTop: 5 }}>עוד 2 משמרות לג׳סטר מאסטר ⚡</div>
+      <div style={{ fontSize: 10.5, color: MUTED, fontWeight: 500, marginTop: 5 }}>
+        {completedJobs} ג׳סטות הושלמו ⚡
+      </div>
     </div>
   );
 }
@@ -289,7 +291,8 @@ export default function JestaSidebar({
               </div>
 
               {!isGuest && !isEmployer && (
-                <LevelBar pct={Math.min(100, (user?.completedJobs ?? 0) * 10)} />
+                <LevelBar pct={Math.min(100, (user?.completedJobs ?? 0) * 10)}
+                  completedJobs={user?.completedJobs ?? 0} />
               )}
             </div>
 
@@ -313,16 +316,24 @@ export default function JestaSidebar({
                   <motion.div key="employer-nav"
                     initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.22 }}>
-                    <NavItem icon={BarChart3}  label="דאשבורד וסטטיסטיקות" sub="3 ג׳סטות פעילות"   accentColor="#d97706" onClick={() => { onGoToEmployerDashboard?.(); onClose(); }} />
+                    <NavItem icon={BarChart3}  label="דאשבורד וסטטיסטיקות" sub="הג׳סטות והמועמדים שלך" accentColor="#d97706" onClick={() => { onGoToEmployerDashboard?.(); onClose(); }} />
                     <NavItem icon={PlusCircle} label="פרסם ג׳סטה חדשה"   sub="הוסף משרה חדשה"    accentColor="#059669" onClick={() => { onOpenCreateModal?.(); onClose(); }} />
-                    <NavItem icon={Receipt}    label="היסטוריית תשלומים"  sub="₪2,400 שולמו"      accentColor="#0369a1" />
+                    {/* TODO: payments history needs a payments table + endpoint
+                        (none exist yet) — shown disabled until then */}
+                    <div style={{ opacity: 0.45, pointerEvents: "none" }}>
+                      <NavItem icon={Receipt} label="היסטוריית תשלומים" sub="בקרוב" accentColor="#0369a1" />
+                    </div>
                   </motion.div>
                 ) : (
                   <motion.div key="worker-nav"
                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.22 }}>
-                    <NavItem icon={CalendarDays} label="לוח המשמרות שלי" sub="2 משמרות השבוע" badge="2" onClick={() => { onGoToSchedule?.(); onClose(); }} />
-                    <NavItem icon={Wallet}       label="היסטוריית עבודות" sub="₪1,240 נצברו" />
+                    <NavItem icon={CalendarDays} label="לוח המשמרות שלי" sub="המשמרות והבקשות שלך" onClick={() => { onGoToSchedule?.(); onClose(); }} />
+                    {/* TODO: work/earnings history needs a payments/earnings
+                        endpoint (none exists yet) — shown disabled until then */}
+                    <div style={{ opacity: 0.45, pointerEvents: "none" }}>
+                      <NavItem icon={Wallet} label="היסטוריית עבודות" sub="בקרוב" />
+                    </div>
                     <NavItem icon={UserCog}      label="הגדרות פרופיל ואימות" sub="עדכן תמונה ופרטים" onClick={() => { onOpenProfileSettings?.(); onClose(); }} />
                   </motion.div>
                 )}
@@ -357,16 +368,18 @@ export default function JestaSidebar({
             {/* Footer */}
             <div style={{ padding: "10px 14px 24px" }}>
               <Divider />
-              <motion.button whileHover={{ x: -3 }} whileTap={{ scale: 0.97 }}
+              {/* TODO: replace with the real support WhatsApp number once one
+                  exists — disabled until then so the button isn't a dead end */}
+              <motion.button disabled
                 style={{ width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "11px 8px", borderRadius: 12, border: "none",
-                  background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
+                  padding: "11px 8px", borderRadius: 12, border: "none", opacity: 0.45,
+                  background: "transparent", cursor: "not-allowed", fontFamily: "inherit", textAlign: "right" }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0,
                   background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <MessageSquare size={16} color={MUTED} strokeWidth={2} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: MUTED }}>עזרה ב-WhatsApp 💬</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: MUTED }}>עזרה ב-WhatsApp 💬 (בקרוב)</div>
                 </div>
               </motion.button>
 

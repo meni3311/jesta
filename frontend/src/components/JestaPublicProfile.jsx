@@ -10,25 +10,27 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Star, CheckCircle2, MapPin, Zap, Shield, Briefcase } from "lucide-react";
 
-export const WORKER_DEFAULTS = {
-  name: "יובל כהן",
-  rating: 4.9,
-  shifts: 24,
-  level: "ג׳סטר זהב",
-  city: "ראשון לציון",
-  bio: "עובד מהיר, אמין ותמיד בזמן. אוהב עבודה עם אנשים ומוכן לכל משימה!",
-  badges: ["⚡ מהיר תגובה", "✅ מאומת", "⭐ מועדף"],
+// Neutral fallbacks only — real values come from the `userData` prop
+// (worker: { name, rating, completedJobs, id } from ApplicantCard, etc.)
+const WORKER_DEFAULTS = {
+  name: "ג׳סטר",
+  rating: 0,
+  shifts: 0,
+  level: "ג׳סטר חדש",
+  city: "",
+  bio: "",
+  badges: [],
 };
 
-export const EMPLOYER_DEFAULTS = {
-  name: "אורן פרידמן",
-  business: "סינמה סיטי",
-  rating: 4.9,
-  totalShifts: 47,
-  level: "מעסיק מובחר",
-  city: "ראשון לציון",
-  bio: "מנהל משמרות בסינמה סיטי, מעסיק הוגן ומשלם מיד בסוף כל משמרת.",
-  badges: ["💼 מעסיק מאומת", "✅ תשלום מיידי", "🏆 ב-5% המובילים"],
+const EMPLOYER_DEFAULTS = {
+  name: "מעסיק",
+  business: "",
+  rating: 0,
+  totalShifts: 0,
+  level: "מעסיק",
+  city: "",
+  bio: "",
+  badges: [],
 };
 
 const SLATE  = "#0f172a";
@@ -40,6 +42,9 @@ export default function JestaPublicProfile({ isOpen, onClose, type = "worker", u
   const isWorker = type === "worker";
   const defaults = isWorker ? WORKER_DEFAULTS : EMPLOYER_DEFAULTS;
   const data = { ...defaults, ...userData };
+  // Map common backend field names to the shape this UI expects
+  if (userData?.fullName && !userData?.name)        data.name   = userData.fullName;
+  if (userData?.completedJobs != null)              data.shifts = userData.completedJobs;
 
   return (
     <AnimatePresence>
@@ -120,9 +125,12 @@ export default function JestaPublicProfile({ isOpen, onClose, type = "worker", u
               </div>
 
               {/* CTA */}
-              <motion.button whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.01 }}
-                style={{ width: "100%", padding: "14px", borderRadius: 50, border: "none", background: isWorker ? "linear-gradient(135deg,#9333ea,#ec4899)" : "linear-gradient(135deg,#d97706,#92400e)", color: "#fff", fontSize: 15, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", boxShadow: isWorker ? "0 6px 20px rgba(147,51,234,0.35)" : "0 6px 20px rgba(217,119,6,0.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                {isWorker ? <><Zap size={16} fill="#facc15" color="#facc15" /> שלח הצעת עבודה</> : <><Briefcase size={16} /> צור קשר עם המעסיק</>}
+              {/* TODO: direct job offers / direct contact require a backend
+                  endpoint (e.g. POST /offers) that doesn't exist yet —
+                  disabled until then rather than pretending to work. */}
+              <motion.button disabled
+                style={{ width: "100%", padding: "14px", borderRadius: 50, border: "none", background: "#e2e8f0", color: "#94a3b8", fontSize: 15, fontWeight: 900, cursor: "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                {isWorker ? <><Zap size={16} /> שלח הצעת עבודה (בקרוב)</> : <><Briefcase size={16} /> צור קשר עם המעסיק (בקרוב)</>}
               </motion.button>
             </div>
           </motion.div>

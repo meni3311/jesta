@@ -104,3 +104,63 @@ DO $$ BEGIN
     BEFORE UPDATE ON applications
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── chats ─────────────────────────────────────────────────────────────────────
+-- One chat per approved application (created by the backend on approval).
+
+CREATE TABLE IF NOT EXISTS chats (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  "applicationId" UUID        NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+  "employerId"    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "workerId"      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "createdAt"     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ── messages ──────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS messages (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  "chatId"    UUID        NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  "senderId"  UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  text        TEXT        NOT NULL,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chats_employer  ON chats ("employerId");
+CREATE INDEX IF NOT EXISTS idx_chats_worker    ON chats ("workerId");
+CREATE INDEX IF NOT EXISTS idx_messages_chat   ON messages ("chatId", "createdAt");
+
+-- ── Row Level Security ────────────────────────────────────────────────────────
+-- The NestJS backend connects via the Postgres connection string (Prisma) and
+-- is NOT subject to RLS. The browser only holds the ANON key, so enabling RLS
+-- with no anon policies makes all tables unreadable from the client — exactly
+-- what we want: ALL data access goes through the authenticated NestJS API.
+-- (Realtime chat uses Broadcast channels, not postgres_changes, so it does
+-- not require anon SELECT access.)
+
+ALTER TABLE users        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE jobs         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chats        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages     ENABLE ROW LEVEL SECURITY;
+
+-- ── Storage: avatars bucket ───────────────────────────────────────────────────
+-- Public-read bucket. The backend uploads with the service-role key (bypasses
+-- policies). The anon INSERT policy below allows the registration screen to
+-- upload an avatar before the user has an account/token.
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+DO $$ BEGIN
+  CREATE POLICY "avatars_public_read"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'avatars');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "avatars_anon_upload"
+    ON storage.objects FOR INSERT
+    WITH CHECK (bucket_id = 'avatars');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

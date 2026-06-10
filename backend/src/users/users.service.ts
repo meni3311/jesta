@@ -112,8 +112,8 @@ export class UsersService {
     });
 
     await this.resend.emails.send({
-      from:    'onboarding@resend.dev',
-      to:      'meni3311il@gmail.com',
+      from:    this.config.get<string>('RESEND_FROM') ?? 'Jesta <noreply@jesta.co.il>',
+      to:      user.email,
       subject: `קוד האימות שלך: ${otp} — Jesta ⚡`,
       html:    verificationEmailHtml({ fullName: user.fullName, code: otp }),
     });

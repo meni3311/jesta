@@ -7,66 +7,53 @@
  *   onOpenChat  fn(contract, viewerRole)
  *   viewerRole  "worker" | "employer"
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Lock, MessageCircle, ChevronLeft } from "lucide-react";
+import { X, Lock, MessageCircle, ChevronLeft, Loader2 } from "lucide-react";
+import { getChats } from "../services/api";
 
 const SLATE  = "#0f172a";
 const MUTED  = "#64748b";
 const VIOLET = "#7c3aed";
 
-// ── Mock conversation threads ─────────────────────────────────────────────────
-// status: "approved" = active & open | "finished" | "pending" = locked
-const CONVERSATIONS = [
-  {
-    id: "c-1",
-    workerName:    "יובל כהן",
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Hebrew-friendly relative timestamp for the last message */
+function formatLastTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) {
+    return d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  }
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "אתמול";
+  return d.toLocaleDateString("he-IL", { day: "numeric", month: "numeric" });
+}
+
+/** Map a backend Chat record (GET /api/chats) to the row shape the UI renders */
+function toConvo(chat) {
+  const lastMessage = chat.messages?.[0] ?? null;
+  const appStatus   = chat.application?.status;
+  return {
+    id:            chat.id,
+    chatId:        chat.id,
+    workerId:      chat.worker?.id,
+    workerName:    chat.worker?.fullName   ?? "ג׳סטר",
     workerEmoji:   "🧑",
-    employerName:  "סינמה סיטי",
-    employerEmoji: "🍿",
-    jobTitle:      "סינמה סיטי - עוזר בדוכן פופקורן",
-    status:        "approved",
-    lastMsg:       "מגיע ב-15:50!",
-    lastTime:      "15:46",
-    unread:        2,
-  },
-  {
-    id: "c-2",
-    workerName:    "תמר לוי",
-    workerEmoji:   "👩",
-    employerName:  "מגה ספורט",
-    employerEmoji: "🏃",
-    jobTitle:      "מגה ספורט - מוכר/ת בחנות",
-    status:        "finished",
-    lastMsg:       "תודה על העבודה הנהדרת! 🙏",
-    lastTime:      "אתמול",
+    employerName:  chat.employer?.fullName ?? "מעסיק",
+    employerEmoji: "👨‍💼",
+    jobTitle:      chat.application?.job?.title ?? "",
+    // Chats only exist after approval; COMPLETED applications go to the archive
+    status:        appStatus === "COMPLETED" ? "finished" : "approved",
+    lastMsg:       lastMessage?.text ?? "עוד אין הודעות — אמרו שלום! 👋",
+    lastTime:      formatLastTime(lastMessage?.createdAt ?? chat.createdAt),
+    // TODO: no read-receipt infrastructure yet (needs a message_reads table);
+    // unread counts are 0 until that exists.
     unread:        0,
-  },
-  {
-    id: "c-3",
-    workerName:    "אריאל גולן",
-    workerEmoji:   "👦",
-    employerName:  "קפה גרג",
-    employerEmoji: "☕",
-    jobTitle:      "קפה גרג - עוזר ברסטוראן",
-    status:        "approved",
-    lastMsg:       "האם יש חניה בסביבה?",
-    lastTime:      "14:22",
-    unread:        1,
-  },
-  {
-    id: "c-4",
-    workerName:    "נועה שמיר",
-    workerEmoji:   "👧",
-    employerName:  "זארה",
-    employerEmoji: "👗",
-    jobTitle:      "זארה - קיפול ומיון בגדים",
-    status:        "finished",
-    lastMsg:       "אוקיי, נדבר לפני המשמרת הבאה.",
-    lastTime:      "לפני 3 ימים",
-    unread:        0,
-  },
-];
+  };
+}
 
 function ConvoRow({ convo, viewerRole, onOpenChat }) {
   const locked   = convo.status !== "approved";
@@ -149,9 +136,31 @@ function ConvoRow({ convo, viewerRole, onOpenChat }) {
 }
 
 export default function JestaChatInbox({ isOpen, onClose, onOpenChat, viewerRole = "worker" }) {
-  const totalUnread = CONVERSATIONS.reduce((s, c) => s + c.unread, 0);
-  const active  = CONVERSATIONS.filter(c => c.status === "approved");
-  const past    = CONVERSATIONS.filter(c => c.status !== "approved");
+  const [conversations, setConversations] = useState([]);
+  const [status, setStatus]               = useState("loading"); // loading | ok | error
+
+  // Fetch real chats every time the sheet opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setStatus("loading");
+    getChats()
+      .then((data) => {
+        if (cancelled) return;
+        setConversations(data.map(toConvo));
+        setStatus("ok");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("[Inbox] Failed to load chats:", err.message);
+        setStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  const totalUnread = conversations.reduce((s, c) => s + c.unread, 0);
+  const active  = conversations.filter(c => c.status === "approved");
+  const past    = conversations.filter(c => c.status !== "approved");
 
   return (
     <AnimatePresence>
@@ -220,7 +229,34 @@ export default function JestaChatInbox({ isOpen, onClose, onOpenChat, viewerRole
 
             {/* List */}
             <div style={{ overflowY: "auto", flex: 1 }}>
-              {active.length > 0 && (
+              {status === "loading" && (
+                <div style={{ display: "flex", justifyContent: "center", padding: "36px 0" }}>
+                  <Loader2 size={24} color={VIOLET}
+                    style={{ animation: "spin 0.7s linear infinite" }} />
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              )}
+
+              {status === "error" && (
+                <div style={{ textAlign: "center", padding: "32px 20px",
+                  fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
+                  שגיאה בטעינת השיחות. נסה לפתוח שוב.
+                </div>
+              )}
+
+              {status === "ok" && conversations.length === 0 && (
+                <div style={{ textAlign: "center", padding: "36px 20px" }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: SLATE, marginBottom: 4 }}>
+                    עוד אין שיחות
+                  </div>
+                  <div style={{ fontSize: 12, color: MUTED }}>
+                    שיחה נפתחת אוטומטית ברגע שמועמדות מאושרת
+                  </div>
+                </div>
+              )}
+
+              {status === "ok" && active.length > 0 && (
                 <>
                   <div style={{
                     fontSize: 10.5, fontWeight: 700, color: MUTED,
@@ -236,7 +272,7 @@ export default function JestaChatInbox({ isOpen, onClose, onOpenChat, viewerRole
                 </>
               )}
 
-              {past.length > 0 && (
+              {status === "ok" && past.length > 0 && (
                 <>
                   <div style={{
                     fontSize: 10.5, fontWeight: 700, color: MUTED,
@@ -261,5 +297,6 @@ export default function JestaChatInbox({ isOpen, onClose, onOpenChat, viewerRole
   );
 }
 
-// Export unread count so FAB can read it without duplicating data
-export const TOTAL_UNREAD = 3;
+// TODO: real unread counts require read-receipt tracking (message_reads table
+// + per-message read state). Until that exists the FAB shows no badge.
+export const TOTAL_UNREAD = 0;

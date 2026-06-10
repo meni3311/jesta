@@ -33,35 +33,12 @@ const MUTED     = "#94a3b8";
 const SLATE     = "#0f172a";
 const GOLD      = "#fbbf24";
 
-// ─── Seed jobs ────────────────────────────────────────────────────────────────
-export const INITIAL_JOBS = [
-  {
-    id: 1, employer: "סינמה סיטי", title: "עוזר בדוכן פופקורן",
-    pay: "₪55", payRaw: 55, employerRating: 4.9,
-    time: "היום, 16:00–22:00", dist: "700 מטר ממך",
-    perks: ["מזומן בסוף המשמרת", "אוכל כלול"],
-    lat: 31.9774, lng: 34.7787, slideIndex: 0,
-  },
-  {
-    id: 2, employer: "משפחת כהן", title: 'דוגווקר ל-3 כלבים מתוקים',
-    pay: "₪70", payRaw: 70, employerRating: 4.7,
-    time: "מחר בבוקר ☀️", dist: '1.2 ק"מ',
-    perks: ["מזומן בסוף", "עבודה בשטח פתוח"],
-    lat: 32.0711, lng: 34.8213, slideIndex: 2,
-  },
-  {
-    id: 3, employer: "Urban Outfitters", title: "קיפול בגדים והכנת משלוחים",
-    pay: "₪50", payRaw: 50, employerRating: 4.5,
-    time: "יום שישי 🗓️", dist: "קניון עזריאלי",
-    perks: ["העברה בנקאית", "הנחה בחנות"],
-    lat: 32.0731, lng: 34.7920, slideIndex: 1,
-  },
-];
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SNAP       = { OPEN: 150, PEEK: 490, MIN: 690 };
 const MAP_CENTER = [32.030, 34.800];
 const MAP_ZOOM   = 11;
+// TODO: replace with navigator.geolocation (with user permission) — for now
+// the radius filter measures from a fixed central point in Gush Dan.
 const USER_LAT   = 32.0608;
 const USER_LNG   = 34.7874;
 
@@ -537,7 +514,7 @@ function FiltersBar({ filters, setFilters }) {
 }
 
 // ─── Main feed ────────────────────────────────────────────────────────────────
-export default function JestaJobsFeed({ jobs = INITIAL_JOBS, onJobSelect, onApply, onOpenSidebar, onOpenProfile }) {
+export default function JestaJobsFeed({ jobs = [], onJobSelect, onApply, onOpenSidebar, onOpenProfile }) {
   const [activePin, setActivePin] = useState(jobs[0]?.id ?? 1);
   const [filters, setFilters]     = useState(FILTER_DEFAULTS);
   const cardRefs                  = useRef({});

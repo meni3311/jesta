@@ -1,42 +1,79 @@
+/**
+ * JestaSchedule — the worker's real shifts ("המשמרות שלי")
+ *
+ * Real data: GET /api/jobs/applications/me — the logged-in worker's
+ * applications, each with its job, employer and chat (when approved).
+ *
+ * Props:
+ *   onBack()
+ *   onOpenChat(contract)
+ *   user   { fullName, rating, completedJobs } — logged-in worker (optional)
+ */
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Calendar, Clock, MapPin, CheckCircle2, Star, MessageCircle } from "lucide-react";
+import { ArrowRight, Calendar, Clock, MapPin, CheckCircle2, MessageCircle, Loader2 } from "lucide-react";
+import { getMyApplications } from "../services/api";
 
 const SLATE  = "#0f172a";
 const MUTED  = "#64748b";
 const VIOLET = "#7c3aed";
 const GOLD   = "#d97706";
 
-const SHIFTS = [
-  {
-    id: "w-1",
-    employer: "סינמה סיטי",
-    title: "עוזר בדוכן פופקורן",
-    date: "היום",
-    time: "16:00-22:00",
-    pay: "55",
-    payRaw: 55,
-    hours: 6,
-    dist: "700 מטר",
-    emoji: "🍿",
-    color: "#7c3aed",
-  },
-  {
-    id: "w-2",
-    employer: "משפחת כהן",
-    title: "דוגווקר",
-    date: "מחר",
-    time: "08:00-10:00",
-    pay: "70",
-    payRaw: 70,
-    hours: 2,
-    dist: "1.2 ק\"מ",
-    emoji: "🐕",
-    color: "#059669",
-  },
-];
+const SHIFT_COLORS = ["#7c3aed", "#059669", "#0369a1", "#b45309", "#be185d"];
+const SHIFT_EMOJIS = ["💼", "⚡", "🛍️", "📦", "🎉"];
 
-function ShiftCard({ shift, isApproved, onApprove, onOpenChat }) {
-  const total = shift.payRaw * shift.hours;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function dayLabel(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today))    return "היום";
+  if (sameDay(d, tomorrow)) return "מחר";
+  return d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "numeric" });
+}
+
+function timeRange(startIso, endIso) {
+  const fmt = (iso) => new Date(iso).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  if (!startIso) return "";
+  return endIso ? `${fmt(startIso)}-${fmt(endIso)}` : fmt(startIso);
+}
+
+function shiftHours(startIso, endIso) {
+  if (!startIso || !endIso) return 0;
+  const h = (new Date(endIso) - new Date(startIso)) / 36e5;
+  return h > 0 ? Math.round(h * 10) / 10 : 0;
+}
+
+/** Map a backend Application (with job + employer + chat) to the card shape */
+function toShift(app, idx) {
+  const job   = app.job ?? {};
+  const hours = shiftHours(job.startTime, job.endTime);
+  return {
+    id:        app.id,
+    status:    app.status,                       // PENDING | APPROVED | REJECTED | COMPLETED
+    chatId:    app.chat?.id ?? null,
+    employer:  job.employer?.fullName ?? "מעסיק",
+    title:     job.title ?? "",
+    date:      dayLabel(job.startTime),
+    time:      timeRange(job.startTime, job.endTime),
+    pay:       String(job.pay ?? 0),
+    payRaw:    job.pay ?? 0,
+    hours,
+    dist:      job.address ?? "",
+    emoji:     SHIFT_EMOJIS[idx % SHIFT_EMOJIS.length],
+    color:     SHIFT_COLORS[idx % SHIFT_COLORS.length],
+    startTime: job.startTime,
+  };
+}
+
+function ShiftCard({ shift, onOpenChat }) {
+  const total      = Math.round(shift.payRaw * shift.hours);
+  const isApproved = shift.status === "APPROVED" || shift.status === "COMPLETED";
+  const isPending  = shift.status === "PENDING";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
@@ -75,8 +112,11 @@ function ShiftCard({ shift, isApproved, onApprove, onOpenChat }) {
           <Clock size={12} color="#c4b5fd" strokeWidth={2} /> {shift.time}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4,
-          fontSize: 12, color: MUTED, fontWeight: 500 }}>
-          <MapPin size={12} color="#c4b5fd" strokeWidth={2} /> {shift.dist}
+          fontSize: 12, color: MUTED, fontWeight: 500, overflow: "hidden" }}>
+          <MapPin size={12} color="#c4b5fd" strokeWidth={2} />
+          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 90 }}>
+            {shift.dist}
+          </span>
         </div>
       </div>
 
@@ -86,23 +126,23 @@ function ShiftCard({ shift, isApproved, onApprove, onOpenChat }) {
           {"סה״כ למשמרת: "}
           <span style={{ fontWeight: 800, color: SLATE }}>{"₪"}{total}</span>
         </div>
-        {shift.id === "w-1" && (
-          isApproved ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4,
-                background: "#f0fdf4", border: "1px solid #bbf7d0",
-                borderRadius: 20, padding: "5px 12px" }}>
-                <CheckCircle2 size={13} color="#059669" strokeWidth={2.5} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>אושר!</span>
-              </div>
+        {isApproved ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4,
+              background: "#f0fdf4", border: "1px solid #bbf7d0",
+              borderRadius: 20, padding: "5px 12px" }}>
+              <CheckCircle2 size={13} color="#059669" strokeWidth={2.5} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>אושר!</span>
+            </div>
+            {shift.chatId && (
               <motion.button whileTap={{ scale: 0.9 }}
                 onClick={() => onOpenChat?.({
-                  workerId:      shift.id,
-                  workerName:    "יובל כהן",
+                  chatId:        shift.chatId,
+                  workerName:    "",
                   workerEmoji:   "🧑",
                   employerName:  shift.employer,
                   employerEmoji: shift.emoji,
-                  jobTitle:      shift.employer + " - " + shift.title,
+                  jobTitle:      shift.title,
                   status:        "approved",
                 })}
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "#ede9fe",
@@ -110,23 +150,55 @@ function ShiftCard({ shift, isApproved, onApprove, onOpenChat }) {
                   justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                 <MessageCircle size={16} color={VIOLET} strokeWidth={2} />
               </motion.button>
-            </div>
-          ) : (
-            <motion.button whileTap={{ scale: 0.95 }} onClick={onApprove}
-              style={{ background: "linear-gradient(135deg,#9333ea,#ec4899)", color: "#fff",
-                border: "none", borderRadius: 20, padding: "6px 14px", fontSize: 12,
-                fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 3px 10px rgba(147,51,234,0.3)" }}>
-              אשר הגעה ✓
-            </motion.button>
-          )
+            )}
+          </div>
+        ) : isPending ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 4,
+            background: "#fef3c7", border: "1px solid #fde68a",
+            borderRadius: 20, padding: "5px 12px" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>⏳ ממתין לאישור</span>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 4,
+            background: "#fef2f2", border: "1px solid #fecaca",
+            borderRadius: 20, padding: "5px 12px" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#ef4444" }}>לא אושר</span>
+          </div>
         )}
       </div>
     </motion.div>
   );
 }
 
-export default function JestaSchedule({ onBack, isApproved, onLocalApprove, onOpenChat }) {
+export default function JestaSchedule({ onBack, onOpenChat, user = null }) {
+  const [shifts, setShifts] = useState([]);
+  const [status, setStatus] = useState("loading"); // loading | ok | error
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyApplications()
+      .then((data) => {
+        if (cancelled) return;
+        setShifts(data.map(toShift));
+        setStatus("ok");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("[Schedule] Failed to load applications:", err.message);
+        setStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Real stats derived from the data
+  const visible  = shifts.filter(s => s.status !== "REJECTED");
+  const upcoming = shifts.filter(s => s.status === "APPROVED" || s.status === "PENDING");
+  const earned   = shifts
+    .filter(s => s.status === "COMPLETED" || s.status === "APPROVED")
+    .reduce((sum, s) => sum + Math.round(s.payRaw * s.hours), 0);
+  const completedJobs = user?.completedJobs ?? 0;
+  const levelPct      = Math.min(100, completedJobs * 10);
+
   return (
     <div dir="rtl" style={{ fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
       width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#f8f7ff" }}>
@@ -143,18 +215,20 @@ export default function JestaSchedule({ onBack, isApproved, onLocalApprove, onOp
           </motion.button>
           <div>
             <div style={{ fontSize: 20, fontWeight: 900, color: SLATE }}>המשמרות שלי ⚡</div>
-            <div style={{ fontSize: 13, color: MUTED, fontWeight: 500 }}>2 משמרות השבוע</div>
+            <div style={{ fontSize: 13, color: MUTED, fontWeight: 500 }}>
+              {status === "ok" ? `${upcoming.length} משמרות קרובות` : " "}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Stats strip */}
+      {/* Stats strip — computed from real applications */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
         background: "#fff", borderBottom: "1px solid #ede9fe", flexShrink: 0 }}>
         {[
-          { label: "השבוע", value: "2", sub: "משמרות" },
-          { label: "הרוויח", value: "470", sub: "השבוע" },
-          { label: "דירוג", value: "4.9 ⭐", sub: "ממוצע" },
+          { label: "קרובות",  value: String(upcoming.length), sub: "משמרות" },
+          { label: "צפי הכנסה", value: `₪${earned}`, sub: "" },
+          { label: "דירוג", value: user?.rating ? `${user.rating.toFixed(1)} ⭐` : "– ⭐", sub: "ממוצע" },
         ].map((s, i) => (
           <div key={i} style={{ padding: "12px 8px", textAlign: "center",
             borderLeft: i > 0 ? "1px solid #f1f0fb" : "none" }}>
@@ -168,35 +242,64 @@ export default function JestaSchedule({ onBack, isApproved, onLocalApprove, onOp
 
       {/* Shifts list */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px 24px" }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: MUTED, marginBottom: 10,
-          textTransform: "uppercase", letterSpacing: 0.5 }}>
-          קרובות
-        </div>
-        {SHIFTS.map((shift) => (
-          <ShiftCard key={shift.id} shift={shift}
-            isApproved={shift.id === "w-1" ? isApproved : false}
-            onApprove={shift.id === "w-1" ? onLocalApprove : undefined}
-            onOpenChat={onOpenChat} />
-        ))}
+        {status === "loading" && (
+          <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+            <Loader2 size={26} color={VIOLET} style={{ animation: "spin 0.7s linear infinite" }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
 
-        {/* Level progress */}
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #ede9fe",
-          padding: "16px", marginTop: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between",
-            alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>🏆 ג׳סטר זהב</span>
-            <span style={{ fontSize: 12, color: MUTED }}>72%</span>
+        {status === "error" && (
+          <div style={{ textAlign: "center", padding: "32px 20px",
+            fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
+            שגיאה בטעינת המשמרות. נסה שוב מאוחר יותר.
           </div>
-          <div style={{ height: 8, borderRadius: 4, background: "#f1f5f9", overflow: "hidden" }}>
-            <motion.div initial={{ width: 0 }} animate={{ width: "72%" }}
-              transition={{ duration: 1.2, ease: [0.25, 0, 0.2, 1] }}
-              style={{ height: "100%", borderRadius: 4,
-                background: "linear-gradient(90deg,#a78bfa,#fbbf24)" }} />
+        )}
+
+        {status === "ok" && visible.length === 0 && (
+          <div style={{ textAlign: "center", padding: "40px 20px" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🗓️</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: SLATE, marginBottom: 6 }}>
+              עוד אין משמרות
+            </div>
+            <div style={{ fontSize: 12, color: MUTED }}>
+              הגש מועמדות לג׳סטה מהפיד והיא תופיע כאן
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
-            עוד 2 משמרות לג׳סטר מאסטר ⚡
+        )}
+
+        {status === "ok" && visible.length > 0 && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, color: MUTED, marginBottom: 10,
+              textTransform: "uppercase", letterSpacing: 0.5 }}>
+              קרובות
+            </div>
+            {visible.map((shift) => (
+              <ShiftCard key={shift.id} shift={shift} onOpenChat={onOpenChat} />
+            ))}
+          </>
+        )}
+
+        {/* Level progress — derived from the user's real completedJobs */}
+        {status === "ok" && (
+          <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #ede9fe",
+            padding: "16px", marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>🏆 ג׳סטר זהב</span>
+              <span style={{ fontSize: 12, color: MUTED }}>{levelPct}%</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 4, background: "#f1f5f9", overflow: "hidden" }}>
+              <motion.div initial={{ width: 0 }} animate={{ width: `${levelPct}%` }}
+                transition={{ duration: 1.2, ease: [0.25, 0, 0.2, 1] }}
+                style={{ height: "100%", borderRadius: 4,
+                  background: "linear-gradient(90deg,#a78bfa,#fbbf24)" }} />
+            </div>
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+              {completedJobs} ג׳סטות הושלמו עד כה ⚡
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

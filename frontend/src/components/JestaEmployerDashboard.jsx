@@ -1,3 +1,8 @@
+/**
+ * ⚠️ LEGACY / UNUSED — this is the old mock employer dashboard. It is NOT
+ * imported anywhere; App.jsx uses EmployerDashboard.jsx (real API data).
+ * TODO: delete this file once confirmed nothing external references it.
+ */
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, PlusCircle, BarChart3, Clock, Star, Users, MessageCircle } from "lucide-react";
 

@@ -128,16 +128,55 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
+    // Unverified users must complete OTP verification before getting a session.
+    // Issue a fresh OTP and tell the client to show the OTP screen.
+    if (!user.isVerified) {
+      await this.issueOtp(user.email);
+      return { pendingVerification: true as const, email: user.email };
+    }
+
     const { passwordHash: _pw, ...safeUser } = user;
     void _pw;
     return { user: safeUser, token: this.sign(user.id, user.role) };
   }
 
+  // ── Resend OTP ─────────────────────────────────────────────────────────────
+  async resendOtp(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where:  { email },
+      select: { id: true, isVerified: true },
+    });
+    // Don't reveal whether the email exists
+    if (user && !user.isVerified) {
+      await this.issueOtp(email);
+    }
+    return { message: 'If the account exists, a new code was sent.' };
+  }
+
+  /** Generate + persist a fresh OTP and email it (fire-and-forget). */
+  private async issueOtp(email: string) {
+    const otp    = this.generateOtp();
+    const expiry = new Date(Date.now() + 30 * 60 * 1000); // 30 min
+    const user = await this.prisma.user.update({
+      where:  { email },
+      data:   { emailVerificationToken: otp, emailVerificationExpiry: expiry },
+      select: { email: true, fullName: true },
+    });
+    this.sendOtpEmail(user.email, user.fullName, otp).catch(err =>
+      console.error('[Jesta] OTP email failed:', err.message),
+    );
+  }
+
   // ── JWT helper ─────────────────────────────────────────────────────────────
   sign(userId: string, role: string): string {
+    const secret = this.config.get<string>('JWT_SECRET');
+    if (!secret) {
+      // Refuse to sign with a guessable fallback — fail loudly instead.
+      throw new Error('JWT_SECRET is not configured (backend/.env)');
+    }
     return jwt.sign(
       { sub: userId, role },
-      this.config.get<string>('JWT_SECRET') ?? 'dev-secret',
+      secret,
       { expiresIn: this.config.get<string>('JWT_EXPIRES_IN') ?? '7d' },
     );
   }

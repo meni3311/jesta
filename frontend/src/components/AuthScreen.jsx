@@ -13,7 +13,7 @@ import { useState, useRef, createRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, ArrowRight, RefreshCw } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
-import { login, register, verifyEmailOtp } from "../services/api";
+import { login, register, verifyEmailOtp, resendOtp } from "../services/api";
 
 // ── BoltHero ──────────────────────────────────────────────────────────────────
 function BoltHero() {
@@ -251,7 +251,14 @@ export default function AuthScreen({ onAuth, onGuest }) {
     try {
       if (tab === "login") {
         const data = await login({ email, password });
-        onAuth(data);
+        if (data?.pendingVerification) {
+          // Unverified account — backend re-sent an OTP; show the OTP screen
+          setPendingEmail(data.email ?? email);
+          setOtpCode("");
+          setScreen("otp");
+        } else {
+          onAuth(data);
+        }
       } else {
         // register → backend sends OTP, returns { pendingVerification, email }
         await register({
@@ -292,10 +299,10 @@ export default function AuthScreen({ onAuth, onGuest }) {
     setLoading(true);
     setOtpCode("");
     try {
-      // Re-trigger registration is not ideal; we call send-verification if we have a token
-      // For simplicity: re-register attempt will hit ConflictException, so we just inform user
-      // In production: add a dedicated POST /auth/resend-otp endpoint
-      setError("לא ניתן לשלוח מחדש כרגע. אנא בדוק את תיבת הדואר שלך או נסה להירשם שוב.");
+      await resendOtp(pendingEmail);
+      setError("✅ קוד חדש נשלח למייל שלך");
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }

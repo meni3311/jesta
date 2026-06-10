@@ -1,37 +1,48 @@
 /**
  * JestaChat — In-app messaging between employer and teenager
  *
+ * Real data: messages are loaded via GET /api/chats/:id/messages, sent via
+ * POST /api/chats/:id/messages, and live updates arrive over the Supabase
+ * Realtime broadcast channel `chat:{chatId}` (event "new-message", sent by
+ * the NestJS backend after persisting each message).
+ *
  * Props:
  *   isOpen        boolean
  *   onClose       fn
- *   contract      { workerId, workerName, workerEmoji, employerName, employerEmoji,
+ *   contract      { chatId, workerName, workerEmoji, employerName, employerEmoji,
  *                   jobTitle, status }
  *                 status: "approved" | "finished" | "pending" | "rejected"
  *   viewerRole    "worker" | "employer"
+ *   currentUserId string — the logged-in user's id (to mark own messages)
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Send, Lock } from "lucide-react";
+import { getChatMessages, sendChatMessage } from "../services/api";
+import { supabase } from "../lib/supabaseClient";
 
 const SLATE  = "#0f172a";
 const MUTED  = "#64748b";
 const VIOLET = "#7c3aed";
 
-// ── Seed messages (demo) ─────────────────────────────────────────────────────
-const SEED_MESSAGES = [
-  { id: 1, role: "employer", text: "שלום! אנחנו שמחים לאשר אותך לג׳סטה 🎉", time: "15:42" },
-  { id: 2, role: "worker",   text: "תודה רבה! כמה עלי להגיע לפני שעת ההתחלה?", time: "15:44" },
-  { id: 3, role: "employer", text: "תגיע 10 דקות מוקדם יותר לברייפינג קצר 👍", time: "15:45" },
-  { id: 4, role: "worker",   text: "מושלם, מגיע ב-15:50!", time: "15:46" },
-];
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function nowTime() {
-  const d = new Date();
+function formatTime(iso) {
+  const d = iso ? new Date(iso) : new Date();
   return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
 const isLocked = (status) => status !== "approved";
+
+/** Map a backend Message record to the bubble shape the UI renders */
+function toBubble(msg, currentUserId, viewerRole) {
+  const otherRole = viewerRole === "worker" ? "employer" : "worker";
+  return {
+    id:   msg.id,
+    role: msg.senderId === currentUserId ? viewerRole : otherRole,
+    text: msg.text,
+    time: formatTime(msg.createdAt),
+  };
+}
 
 // ── MessageBubble ─────────────────────────────────────────────────────────────
 function MessageBubble({ msg, viewerRole }) {
@@ -84,12 +95,49 @@ function MessageBubble({ msg, viewerRole }) {
 }
 
 // ── JestaChat ─────────────────────────────────────────────────────────────────
-export default function JestaChat({ isOpen, onClose, contract, viewerRole = "worker" }) {
-  const [messages, setMessages] = useState(SEED_MESSAGES);
+export default function JestaChat({ isOpen, onClose, contract, viewerRole = "worker", currentUserId = null }) {
+  const [messages, setMessages] = useState([]);
   const [input, setInput]       = useState("");
+  const [sending, setSending]   = useState(false);
   const bottomRef               = useRef(null);
 
-  const locked = isLocked(contract?.status);
+  const chatId = contract?.chatId ?? null;
+  // No chatId = no real chat exists yet (application not approved) → locked
+  const locked = isLocked(contract?.status) || !chatId;
+
+  // Append a message, deduping by id (REST response + broadcast can overlap)
+  const appendMessage = useCallback((bubble) => {
+    setMessages((prev) =>
+      prev.some((m) => m.id === bubble.id) ? prev : [...prev, bubble]);
+  }, []);
+
+  // ── Load history + subscribe to realtime when the chat opens ──────────────
+  useEffect(() => {
+    if (!isOpen || !chatId) { setMessages([]); return; }
+
+    let cancelled = false;
+    getChatMessages(chatId)
+      .then((data) => {
+        if (cancelled) return;
+        setMessages(data.map((m) => toBubble(m, currentUserId, viewerRole)));
+      })
+      .catch((err) => console.error("[JestaChat] Failed to load messages:", err.message));
+
+    // Supabase Realtime: backend broadcasts "new-message" on chat:{chatId}
+    const channel = supabase
+      .channel(`chat:${chatId}`)
+      .on("broadcast", { event: "new-message" }, ({ payload }) => {
+        if (payload?.message) {
+          appendMessage(toBubble(payload.message, currentUserId, viewerRole));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, chatId, currentUserId, viewerRole, appendMessage]);
 
   // Auto-scroll to bottom when messages change or chat opens
   useEffect(() => {
@@ -98,14 +146,19 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
     }
   }, [messages, isOpen]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
-    if (!text || locked) return;
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), role: viewerRole, text, time: nowTime() },
-    ]);
-    setInput("");
+    if (!text || locked || sending) return;
+    setSending(true);
+    try {
+      const saved = await sendChatMessage(chatId, text);
+      appendMessage(toBubble(saved, currentUserId, viewerRole));
+      setInput("");
+    } catch (err) {
+      console.error("[JestaChat] Send failed:", err.message);
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -295,7 +348,7 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
             <motion.button
               whileTap={locked ? {} : { scale: 0.88 }}
               onClick={handleSend}
-              disabled={locked || !input.trim()}
+              disabled={locked || sending || !input.trim()}
               style={{
                 width: 42, height: 42,
                 borderRadius: "50%",

@@ -24,7 +24,11 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const token  = auth.split(' ')[1];
-    const secret = this.config.get<string>('JWT_SECRET') ?? 'dev-secret';
+    const secret = this.config.get<string>('JWT_SECRET');
+    if (!secret) {
+      // Never verify against a guessable fallback secret
+      throw new UnauthorizedException('Server auth misconfigured (JWT_SECRET missing)');
+    }
 
     try {
       req.user = jwt.verify(token, secret) as JwtPayload;

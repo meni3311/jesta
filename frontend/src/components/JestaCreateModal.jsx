@@ -3,7 +3,8 @@
  */
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronRight, ChevronLeft, Check, Zap, Rocket } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, Check, Zap, Rocket, Loader2 } from "lucide-react";
+import { createJob } from "../services/api";
 
 const VIOLET   = "#7c3aed";
 const VIOLET_D = "#5b21b6";
@@ -23,6 +24,9 @@ const CATEGORIES = [
   { id: "sales",     label: "מכירות",     emoji: "🏷️" },
 ];
 
+// TODO: replace with real geocoding of the address field (e.g. Google
+// Geocoding API or Nominatim) before launch. Until then jobs get a random
+// coordinate in the Gush Dan area, so map pins are approximate.
 function mockCoords() {
   return { lat: 31.95 + Math.random() * 0.16, lng: 34.74 + Math.random() * 0.10 };
 }
@@ -214,8 +218,14 @@ function Step3({ data, setData }) {
 }
 
 export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
-  const [step, setStep] = useState(1);
-  const [data, setData] = useState({ title: "", description: "", category: null, date: "", startTime: "", endTime: "", address: "", employer: "", hourlyRate: 50, perks: "" });
+  const [step,       setStep]       = useState(1);
+  const [publishing, setPublishing] = useState(false);
+  const [error,      setError]      = useState(null);
+  const [data, setData] = useState({
+    title: "", description: "", category: null,
+    date: "", startTime: "", endTime: "",
+    address: "", hourlyRate: 50, perks: "",
+  });
 
   const canProceed = useMemo(() => {
     if (step === 1) return data.title.trim() !== "" && data.category !== null;
@@ -226,29 +236,45 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
   const handleNext = () => { if (canProceed) setStep((s) => s + 1); };
   const handleBack = () => setStep((s) => s - 1);
 
-  const handlePublish = () => {
-    const { lat, lng } = mockCoords();
-    const catObj = CATEGORIES.find((c) => c.id === data.category);
-    let hours = 6;
-    if (data.startTime && data.endTime) {
-      const [sh, sm] = data.startTime.split(":").map(Number);
-      const [eh, em] = data.endTime.split(":").map(Number);
-      const diff = (eh * 60 + em) - (sh * 60 + sm);
-      if (diff > 0) hours = Math.round((diff / 60) * 10) / 10;
+  const reset = () => {
+    setStep(1);
+    setError(null);
+    setData({ title: "", description: "", category: null, date: "", startTime: "", endTime: "", address: "", hourlyRate: 50, perks: "" });
+  };
+
+  const handlePublish = async () => {
+    if (publishing) return;
+    setError(null);
+    setPublishing(true);
+    try {
+      // TODO: data.category is collected in the UI but the jobs table has no
+      // `category` column yet — add one (schema + DTO) to persist it.
+      const { lat, lng } = mockCoords();
+      // Build ISO datetimes from the date + time fields
+      const startTime = new Date(`${data.date}T${data.startTime}:00`).toISOString();
+      const endTime   = new Date(`${data.date}T${data.endTime}:00`).toISOString();
+      const perks     = data.perks ? data.perks.split(",").map((p) => p.trim()).filter(Boolean) : [];
+
+      const payload = {
+        title:       data.title.trim(),
+        description: data.description.trim() || undefined,
+        pay:         data.hourlyRate,
+        address:     data.address.trim(),
+        lat, lng,
+        startTime,
+        endTime,
+        perks,
+      };
+
+      const newJob = await createJob(payload);
+      onPublish(newJob);   // pass the real API response to App.jsx
+      onClose();
+      setTimeout(reset, 400);
+    } catch (err) {
+      setError(err.message ?? "שגיאה בפרסום, נסה שוב");
+    } finally {
+      setPublishing(false);
     }
-    const newJob = {
-      id: Date.now(), employer: data.employer.trim() || "מעסיק חדש",
-      title: data.title.trim(), description: data.description.trim(),
-      category: data.category, categoryEmoji: catObj?.emoji ?? "💼",
-      pay: `₪${data.hourlyRate}`, payRaw: data.hourlyRate,
-      time: data.date ? `${new Date(data.date).toLocaleDateString("he-IL",{weekday:"long"})}, ${data.startTime}–${data.endTime}` : `${data.startTime}–${data.endTime}`,
-      dist: data.address,
-      perks: data.perks ? data.perks.split(",").map((p) => p.trim()).filter(Boolean) : [],
-      lat, lng, isNew: true, slideIndex: 0,
-    };
-    onPublish(newJob);
-    onClose();
-    setTimeout(() => { setStep(1); setData({ title: "", description: "", category: null, date: "", startTime: "", endTime: "", address: "", employer: "", hourlyRate: 50, perks: "" }); }, 400);
   };
 
   return (
@@ -284,24 +310,41 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
               </AnimatePresence>
             </div>
 
-            <div style={{ padding: "12px 18px 18px", borderTop: `1px solid ${BORDER}`, display: "flex", gap: 10, flexShrink: 0, background: "#fff" }}>
-              {step > 1 ? (
-                <motion.button whileTap={{ scale: 0.95 }} onClick={handleBack}
-                  style={{ padding: "12px 16px", borderRadius: 50, border: `1.5px solid ${BORDER}`, background: SURFACE, color: MUTED, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
-                  <ChevronRight size={15} strokeWidth={2.5} /> חזרה
-                </motion.button>
-              ) : <div style={{ flex: "0 0 auto" }} />}
+            <div style={{ padding: "12px 18px 18px", borderTop: `1px solid ${BORDER}`, flexShrink: 0, background: "#fff" }}>
+              {/* Error message */}
+              {error && (
+                <div style={{ marginBottom: 10, padding: "9px 14px", borderRadius: 12,
+                  background: "#fef2f2", border: "1px solid #fecaca",
+                  fontSize: 12.5, fontWeight: 600, color: "#dc2626", textAlign: "center" }}>
+                  ⚠️ {error}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
+                {step > 1 ? (
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleBack} disabled={publishing}
+                    style={{ padding: "12px 16px", borderRadius: 50, border: `1.5px solid ${BORDER}`, background: SURFACE, color: MUTED, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, opacity: publishing ? 0.5 : 1 }}>
+                    <ChevronRight size={15} strokeWidth={2.5} /> חזרה
+                  </motion.button>
+                ) : <div style={{ flex: "0 0 auto" }} />}
 
-              <motion.button
-                whileTap={{ scale: canProceed ? 0.96 : 1 }} whileHover={canProceed ? { scale: 1.015 } : {}}
-                onClick={step < 3 ? handleNext : handlePublish} disabled={!canProceed}
-                style={{ flex: 1, padding: "13px 10px", borderRadius: 50, border: "none", background: canProceed ? (step < 3 ? "linear-gradient(135deg,#9333ea 0%,#ec4899 100%)" : "linear-gradient(135deg,#7c3aed 0%,#db2777 100%)") : "#e2e8f0", color: canProceed ? "#fff" : MUTED, fontSize: 15, fontWeight: 900, cursor: canProceed ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: canProceed ? "0 6px 20px rgba(147,51,234,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, transition: "background 0.2s, box-shadow 0.2s", position: "relative", overflow: "hidden" }}>
-                {step === 3 && canProceed && (
-                  <motion.div animate={{ left: ["-100%", "200%"] }} transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
-                    style={{ position: "absolute", top: 0, width: "45%", height: "100%", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)", pointerEvents: "none" }} />
-                )}
-                {step < 3 ? <> המשך <ChevronLeft size={15} strokeWidth={2.5} /> </> : <> <Rocket size={15} strokeWidth={2} /> פרסם ג׳סטה! 🚀 </>}
-              </motion.button>
+                <motion.button
+                  whileTap={{ scale: (canProceed && !publishing) ? 0.96 : 1 }}
+                  whileHover={(canProceed && !publishing) ? { scale: 1.015 } : {}}
+                  onClick={step < 3 ? handleNext : handlePublish}
+                  disabled={!canProceed || publishing}
+                  style={{ flex: 1, padding: "13px 10px", borderRadius: 50, border: "none", background: (canProceed && !publishing) ? (step < 3 ? "linear-gradient(135deg,#9333ea 0%,#ec4899 100%)" : "linear-gradient(135deg,#7c3aed 0%,#db2777 100%)") : "#e2e8f0", color: (canProceed && !publishing) ? "#fff" : MUTED, fontSize: 15, fontWeight: 900, cursor: (canProceed && !publishing) ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: (canProceed && !publishing) ? "0 6px 20px rgba(147,51,234,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, transition: "background 0.2s, box-shadow 0.2s", position: "relative", overflow: "hidden" }}>
+                  {step === 3 && canProceed && !publishing && (
+                    <motion.div animate={{ left: ["-100%", "200%"] }} transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
+                      style={{ position: "absolute", top: 0, width: "45%", height: "100%", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)", pointerEvents: "none" }} />
+                  )}
+                  {publishing
+                    ? <><Loader2 size={15} strokeWidth={2} style={{ animation: "spin 0.7s linear infinite" }} /> מפרסם...</>
+                    : step < 3
+                      ? <> המשך <ChevronLeft size={15} strokeWidth={2.5} /> </>
+                      : <> <Rocket size={15} strokeWidth={2} /> פרסם ג׳סטה! 🚀 </>
+                  }
+                </motion.button>
+              </div>
             </div>
           </motion.div>
         </motion.div>

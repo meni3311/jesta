@@ -35,14 +35,17 @@ model User {
   rating        Float    @default(0)
   completedJobs Int      @default(0)
   isVerified               Boolean   @default(false)
-  emailVerificationToken   String?   // random hex token (stored plain, short-lived)
-  emailVerificationExpiry  DateTime? // token expires after 24 h
+  emailVerificationToken   String?
+  emailVerificationExpiry  DateTime?
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
   // Relations
   postedJobs    Job[]          @relation("EmployerJobs")
   applications  Application[]
+  employerChats Chat[]         @relation("EmployerChats")
+  workerChats   Chat[]         @relation("WorkerChats")
+  sentMessages  Message[]      @relation("SentMessages")
 
   @@map("users")
 }
@@ -79,9 +82,40 @@ model Application {
   updatedAt DateTime          @updatedAt
 
   // Relations
-  job     Job  @relation(fields: [jobId], references: [id])
-  worker  User @relation(fields: [workerId], references: [id])
+  job     Job   @relation(fields: [jobId], references: [id])
+  worker  User  @relation(fields: [workerId], references: [id])
+  chat    Chat?
 
   @@unique([jobId, workerId])
   @@map("applications")
+}
+
+model Chat {
+  id            String   @id @default(uuid())
+  applicationId String   @unique
+  employerId    String
+  workerId      String
+  createdAt     DateTime @default(now())
+
+  // Relations
+  application Application @relation(fields: [applicationId], references: [id])
+  employer    User        @relation("EmployerChats", fields: [employerId], references: [id])
+  worker      User        @relation("WorkerChats",   fields: [workerId],   references: [id])
+  messages    Message[]
+
+  @@map("chats")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  chatId    String
+  senderId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  // Relations
+  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@map("messages")
 }
