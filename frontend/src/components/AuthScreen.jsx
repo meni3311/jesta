@@ -170,6 +170,27 @@ function OtpInput({ value, onChange }) {
   );
 }
 
+// ── Dark wrapper — declared OUTSIDE main component so React never remounts it ──
+function Wrapper({ children }) {
+  return (
+    <div dir="rtl" style={{
+      width: "100%", height: "100%", display: "flex", flexDirection: "column",
+      background: "linear-gradient(180deg, #06030f 0%, #0d0824 60%, #110932 100%)",
+      fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
+      overflow: "hidden", position: "relative",
+    }}>
+      {/* Ambient grid */}
+      <div style={{
+        position: "absolute", inset: 0, opacity: 0.04, pointerEvents: "none",
+        backgroundImage:
+          "linear-gradient(#7c3aed 1px, transparent 1px), linear-gradient(90deg, #7c3aed 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+      }} />
+      {children}
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function AuthScreen({ onAuth, onGuest }) {
   // "auth" = login/register form | "otp" = verify code
@@ -279,25 +300,6 @@ export default function AuthScreen({ onAuth, onGuest }) {
       setLoading(false);
     }
   };
-
-  // ── Shared wrapper ─────────────────────────────────────────────────────────
-  const Wrapper = ({ children }) => (
-    <div dir="rtl" style={{
-      width: "100%", height: "100%", display: "flex", flexDirection: "column",
-      background: "linear-gradient(180deg, #06030f 0%, #0d0824 60%, #110932 100%)",
-      fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
-      overflow: "hidden", position: "relative",
-    }}>
-      {/* Ambient grid */}
-      <div style={{
-        position: "absolute", inset: 0, opacity: 0.04, pointerEvents: "none",
-        backgroundImage:
-          "linear-gradient(#7c3aed 1px, transparent 1px), linear-gradient(90deg, #7c3aed 1px, transparent 1px)",
-        backgroundSize: "40px 40px",
-      }} />
-      {children}
-    </div>
-  );
 
   // ── OTP Screen ─────────────────────────────────────────────────────────────
   if (screen === "otp") {

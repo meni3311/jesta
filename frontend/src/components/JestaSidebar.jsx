@@ -7,7 +7,7 @@
  *   onOpenProfileSettings opens JestaProfileSettings
  *   onSignOut             clears session
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import {
   X, CalendarDays, Wallet, UserCog, MessageSquare,
@@ -116,30 +116,66 @@ function UserAvatar({ user, isEmployer, size = 64, onClick }) {
   const gradient = isEmployer
     ? "linear-gradient(135deg,#fbbf24,#d97706)"
     : "linear-gradient(135deg,#a78bfa,#7c3aed)";
-  const borderColor = isEmployer ? "#fbbf24" : VIOLET;
+  const borderColor   = isEmployer ? "#fbbf24" : VIOLET;
+  const glowColor     = isEmployer ? "rgba(217,119,6,0.5)"  : "rgba(147,51,234,0.55)";
+  const glowColorSoft = isEmployer ? "rgba(217,119,6,0.25)" : "rgba(124,58,237,0.25)";
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
-      <motion.div animate={{ scale: [1, 1.06, 1], opacity: [0.5, 0.2, 0.5] }}
+      {/* Outer pulsing ring */}
+      <motion.div
+        animate={{ scale: [1, 1.08, 1], opacity: [0.55, 0.15, 0.55] }}
         transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
         style={{ position: "absolute", inset: -4, borderRadius: "50%",
           border: `2px solid ${isEmployer ? "rgba(217,119,6,0.4)" : "rgba(147,51,234,0.4)"}`,
           transition: "border-color 0.4s" }} />
+
+      {/* Avatar circle */}
       <motion.div whileTap={{ scale: 0.92 }} onClick={onClick}
-        style={{ width: size, height: size, borderRadius: "50%", cursor: onClick ? "pointer" : "default",
+        style={{ width: size, height: size, borderRadius: "50%",
+          cursor: onClick ? "pointer" : "default",
           background: src ? "transparent" : gradient,
           border: `2.5px solid ${borderColor}`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: `0 4px 20px ${isEmployer ? "rgba(217,119,6,0.25)" : "rgba(124,58,237,0.25)"}`,
-          overflow: "hidden" }}>
-        {src
-          ? <img src={src} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : <span style={{ fontSize: 20, fontWeight: 900, color: "#fff",
-              fontFamily: "'Heebo',system-ui,sans-serif" }}>{abbrev || "👤"}</span>
-        }
+          boxShadow: src
+            ? `0 4px 20px ${glowColorSoft}`
+            : `0 4px 20px ${glowColorSoft}, 0 0 0 3px rgba(167,139,250,0.15), inset 0 0 14px rgba(167,139,250,0.12)`,
+          overflow: "hidden", position: "relative" }}>
+
+        {src ? (
+          <img src={src} alt={name}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <>
+            {/* Neon shimmer sweep */}
+            <motion.div
+              animate={{ x: ["-120%", "220%"] }}
+              transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 2.4, ease: "easeInOut" }}
+              style={{ position: "absolute", top: 0, left: 0,
+                width: "45%", height: "100%",
+                background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)",
+                pointerEvents: "none", zIndex: 1 }} />
+
+            {/* First-letter initial */}
+            <span style={{ fontSize: size * 0.33, fontWeight: 900, color: "#fff",
+              fontFamily: "'Heebo',system-ui,sans-serif",
+              textShadow: `0 0 12px ${glowColor}`, zIndex: 2, lineHeight: 1 }}>
+              {abbrev || "?"}
+            </span>
+
+            {/* Tiny lightning badge — bottom-right of the initials circle */}
+            <div style={{ position: "absolute", bottom: 5, right: 4,
+              fontSize: 9, lineHeight: 1, zIndex: 3, filter: "drop-shadow(0 0 3px rgba(167,139,250,0.8))" }}>
+              ⚡
+            </div>
+          </>
+        )}
       </motion.div>
+
+      {/* Online indicator */}
       <div style={{ position: "absolute", bottom: 2, left: 2, width: 12, height: 12,
-        borderRadius: "50%", background: "#4ade80", border: "2px solid #fff" }} />
+        borderRadius: "50%", background: "#4ade80", border: "2px solid #fff",
+        boxShadow: "0 0 6px rgba(74,222,128,0.5)" }} />
     </div>
   );
 }
@@ -148,9 +184,13 @@ export default function JestaSidebar({
   isOpen, onClose, onGoToSchedule, onOpenCreateModal,
   onGoToEmployerDashboard, onSwitchMode, onOpenProfile,
   onOpenProfileSettings, onSignOut,
-  user = null, isGuest = false,
+  user = null, isGuest = false, mode = "worker",
 }) {
-  const [isEmployer, setIsEmployer] = useState(false);
+  // Initialise from the authoritative mode coming from App, then keep in sync.
+  // This ensures employers see the employer nav immediately on login / session
+  // restore without having to manually toggle the mode switch.
+  const [isEmployer, setIsEmployer] = useState(mode === "employer");
+  useEffect(() => { setIsEmployer(mode === "employer"); }, [mode]);
   const isVerified  = user?.isVerified ?? false;
   const displayName = isGuest ? "אורח 👀" : (user?.fullName ?? "משתמש");
 

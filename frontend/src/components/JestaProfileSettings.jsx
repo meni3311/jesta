@@ -10,10 +10,9 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight, Camera, ShieldCheck, ShieldAlert,
-  Mail, Phone, User, Save, Loader,
+  Mail, Phone, User, Save,
 } from "lucide-react";
-import { supabase }                          from "../lib/supabaseClient";
-import { updateProfile, sendVerificationEmail } from "../services/api";
+import { updateProfile, uploadAvatar, sendVerificationEmail } from "../services/api";
 
 const VIOLET = "#7c3aed";
 const PINK   = "#ec4899";
@@ -101,22 +100,34 @@ export default function JestaProfileSettings({ user, onBack, onUserUpdate }) {
   };
 
   // ── Avatar change ──────────────────────────────────────────────────────────
+  // Sends the file to the NestJS backend (POST /users/avatar), which uploads
+  // to Supabase storage and returns the updated user.  We call onUserUpdate()
+  // immediately so the Sidebar reflects the new photo without a page reload.
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Reset the input so the same file can be re-selected after an error
+    e.target.value = "";
     setAvatarUploading(true);
 
     try {
-      const ext  = file.name.split('.').pop();
-      const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const { error: uploadErr } = await supabase.storage
-        .from('avatars').upload(path, file, { cacheControl: '3600', upsert: false });
-      if (uploadErr) throw uploadErr;
+      const updatedUser = await uploadAvatar(formData);
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      setAvatarUrl(data.publicUrl);
-      showToast("תמונה הועלתה ✓");
+      // The DB stores the clean public URL.
+      // We append ?t= only in memory so the browser discards its cached copy
+      // of the old avatar and re-fetches the new one — across every screen that
+      // renders this user (Sidebar, ProfileSettings) — without the timestamp
+      // ever being written back to the database.
+      const freshUrl = `${updatedUser.avatarUrl}?t=${Date.now()}`;
+      const userWithFreshAvatar = { ...updatedUser, avatarUrl: freshUrl };
+
+      setAvatarUrl(freshUrl);
+      onUserUpdate?.(userWithFreshAvatar);  // ← live-update Sidebar immediately
+      showToast("תמונה עודכנה ✓");
     } catch (err) {
       showToast("שגיאה בהעלאת תמונה", "error");
       console.error("[Jesta] Avatar upload:", err.message);
@@ -196,38 +207,77 @@ export default function JestaProfileSettings({ user, onBack, onUserUpdate }) {
         <div style={{ position: "absolute", bottom: -40, left: "50%",
           transform: "translateX(-50%)", zIndex: 2 }}>
           <div style={{ position: "relative" }}>
+
+            {/* Pulsing neon ring — only shown when no photo */}
+            {!avatarUrl && !avatarUploading && (
+              <motion.div
+                animate={{ scale: [1, 1.1, 1], opacity: [0.6, 0.15, 0.6] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                style={{ position: "absolute", inset: -5, borderRadius: "50%",
+                  border: "2px solid rgba(167,139,250,0.55)", pointerEvents: "none" }} />
+            )}
+
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
               onClick={() => inputRef.current?.click()}
               style={{ width: 80, height: 80, borderRadius: "50%", cursor: "pointer",
                 background: avatarUrl ? "transparent"
                   : "linear-gradient(135deg,#a78bfa,#7c3aed)",
                 border: "3px solid #fff",
-                boxShadow: "0 6px 24px rgba(124,58,237,0.4)",
+                boxShadow: avatarUrl
+                  ? "0 6px 24px rgba(124,58,237,0.35)"
+                  : "0 6px 24px rgba(124,58,237,0.45), 0 0 0 4px rgba(167,139,250,0.15), inset 0 0 16px rgba(167,139,250,0.15)",
                 overflow: "hidden", display: "flex", alignItems: "center",
-                justifyContent: "center", fontSize: 30 }}>
+                justifyContent: "center", position: "relative" }}>
+
               {avatarUploading ? (
+                /* Upload spinner */
                 <motion.div animate={{ rotate: 360 }}
                   transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-                  style={{ width: 24, height: 24, borderRadius: "50%",
-                    border: "3px solid rgba(255,255,255,0.4)", borderTopColor: "#fff" }} />
+                  style={{ width: 26, height: 26, borderRadius: "50%",
+                    border: "3px solid rgba(255,255,255,0.35)", borderTopColor: "#fff" }} />
               ) : avatarUrl ? (
                 <img src={avatarUrl} alt="avatar"
                   style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <span>👤</span>
+                <>
+                  {/* Neon shimmer sweep across the placeholder */}
+                  <motion.div
+                    animate={{ x: ["-120%", "220%"] }}
+                    transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 2.2, ease: "easeInOut" }}
+                    style={{ position: "absolute", top: 0, left: 0,
+                      width: "45%", height: "100%",
+                      background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)",
+                      pointerEvents: "none", zIndex: 1 }} />
+
+                  {/* User's first initial */}
+                  <span style={{ fontSize: 26, fontWeight: 900, color: "#fff",
+                    fontFamily: "'Heebo',system-ui,sans-serif",
+                    textShadow: "0 0 14px rgba(167,139,250,0.9)", zIndex: 2, lineHeight: 1 }}>
+                    {(user?.fullName ?? "").charAt(0).toUpperCase() || "?"}
+                  </span>
+
+                  {/* Tiny lightning motif */}
+                  <div style={{ position: "absolute", bottom: 6, right: 6,
+                    fontSize: 10, lineHeight: 1, zIndex: 3,
+                    filter: "drop-shadow(0 0 4px rgba(167,139,250,0.9))" }}>
+                    ⚡
+                  </div>
+                </>
               )}
             </motion.div>
 
-            {/* Camera badge */}
-            <div style={{ position: "absolute", bottom: 0, left: 0,
-              width: 26, height: 26, borderRadius: "50%",
-              background: "linear-gradient(135deg,#7c3aed,#ec4899)",
-              border: "2px solid #fff",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(124,58,237,0.4)", cursor: "pointer" }}
-              onClick={() => inputRef.current?.click()}>
-              <Camera size={12} color="#fff" strokeWidth={2.5} />
-            </div>
+            {/* Camera / edit badge */}
+            <motion.div
+              whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
+              onClick={() => inputRef.current?.click()}
+              style={{ position: "absolute", bottom: 0, left: 0,
+                width: 28, height: 28, borderRadius: "50%",
+                background: "linear-gradient(135deg,#7c3aed,#ec4899)",
+                border: "2.5px solid #fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 2px 10px rgba(124,58,237,0.5)", cursor: "pointer" }}>
+              <Camera size={13} color="#fff" strokeWidth={2.5} />
+            </motion.div>
           </div>
           <input ref={inputRef} type="file" accept="image/*"
             style={{ display: "none" }} onChange={handleAvatarChange} />

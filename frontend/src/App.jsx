@@ -87,6 +87,15 @@ function restoreSession() {
   return null;
 }
 
+/**
+ * Maps a backend UserRole to the app's mode string.
+ * EMPLOYER → "employer"   (lands on EmployerDashboard)
+ * WORKER / anything else → "worker"  (lands on JobsFeed)
+ */
+function roleToMode(role) {
+  return role === "EMPLOYER" ? "employer" : "worker";
+}
+
 // ── Phone shell ───────────────────────────────────────────────────────────────
 function PhoneShell({ children }) {
   return (
@@ -115,9 +124,11 @@ export default function App() {
   // { user, token } → authenticated via NestJS
   const [authState, setAuthState] = useState(null);
 
-  // Restore session from localStorage on first mount
+  // Restore session from localStorage on first mount.
+  // Set mode BEFORE authState so the first render already shows the right view.
   useEffect(() => {
     const saved = restoreSession();
+    if (saved?.user?.role) setMode(roleToMode(saved.user.role));
     setAuthState(saved ?? false);
   }, []);
 
@@ -131,11 +142,15 @@ export default function App() {
   const handleAuth = useCallback((data) => {
     // data = { user, token } from NestJS /auth/login or /auth/register
     saveSession(data);
+    // Route employers straight to their dashboard; workers get the jobs feed.
+    setMode(roleToMode(data?.user?.role));
     setAuthState(data);
   }, []);
 
   const handleSignOut = useCallback(() => {
     clearSession();
+    setMode("worker");   // reset for whoever logs in next
+    setScreen("feed");
     setAuthState(false);
   }, []);
 
@@ -429,6 +444,7 @@ export default function App() {
         onSignOut={handleSignOut}
         isGuest={isGuest}
         user={authState?.user ?? null}
+        mode={mode}
         onOpenProfileSettings={() => { setSidebarOpen(false); setProfileSettingsOpen(true); }}
       />
 

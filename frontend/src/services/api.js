@@ -90,6 +90,20 @@ export async function updateProfile(payload) {
 }
 
 /**
+ * Upload a new profile picture to the backend.
+ * The backend uploads the file to Supabase storage, saves the public URL
+ * to the users table, and returns the updated user object.
+ * Requires Bearer token.
+ * @param {FormData} formData  Must contain field "file" with the image File
+ */
+export async function uploadAvatar(formData) {
+  const { data } = await api.post('/users/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+/**
  * Send a verification email to the authenticated user.
  * Requires Bearer token.
  */
