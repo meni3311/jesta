@@ -8,177 +8,63 @@
  *   onSignOut             clears session
  */
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   X, CalendarDays, Wallet, UserCog, MessageSquare,
   ChevronLeft, Briefcase, BarChart3, PlusCircle,
-  Receipt, LogOut, ShieldCheck, ShieldAlert,
+  Receipt, LogOut, ShieldCheck, ShieldAlert, Zap, Star, Eye, Trophy,
 } from "lucide-react";
-
-const SURFACE  = "#ffffff";
-const BORDER   = "#f1f0fb";
-const MUTED    = "#94a3b8";
-const GOLD     = "#d97706";
-const GOLD_LT  = "#fef3c7";
-const VIOLET   = "#7c3aed";
-const VIOLET_L = "#f5f3ff";
-const SLATE    = "#0f172a";
-
-function initials(name = "") {
-  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("");
-}
+import { color, radius, font, styles } from "../design-system";
+import { Avatar, Badge, SegmentedControl, PrimaryButton } from "./ui";
 
 function Divider() {
-  return <div style={{ height: 1, background: BORDER, margin: "6px 0" }} />;
+  return <div style={{ height: 1, background: color.borderSubtle, margin: "8px 0" }} />;
 }
 
 function LevelBar({ pct = 0, completedJobs = 0 }) {
   const capped = Math.min(100, pct);
   return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-        <span style={{ fontSize: 11.5, fontWeight: 800, color: GOLD }}>🏆 ג׳סטר זהב</span>
-        <span style={{ fontSize: 10.5, color: MUTED, fontWeight: 500 }}>{capped}%</span>
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 500, color: color.primaryText }}>
+          <Trophy size={11} strokeWidth={2} /> ג׳סטר זהב
+        </span>
+        <span style={{ fontSize: 10, color: color.textMuted, fontWeight: 500 }}>{capped}%</span>
       </div>
-      <div style={{ height: 6, borderRadius: 3, background: "#f1f5f9", overflow: "hidden" }}>
+      <div style={{ height: 6, borderRadius: 3, background: color.surface3, overflow: "hidden" }}>
         <motion.div initial={{ width: 0 }} animate={{ width: `${capped}%` }}
           transition={{ duration: 1.1, delay: 0.3, ease: [0.25, 0, 0.2, 1] }}
-          style={{ height: "100%", borderRadius: 3, background: "linear-gradient(90deg,#a78bfa,#fbbf24)" }} />
+          style={{ height: "100%", borderRadius: 3, background: color.primary }} />
       </div>
-      <div style={{ fontSize: 10.5, color: MUTED, fontWeight: 500, marginTop: 5 }}>
-        {completedJobs} ג׳סטות הושלמו ⚡
+      <div style={{ fontSize: 10, color: color.textMuted, fontWeight: 400, marginTop: 4 }}>
+        {completedJobs} ג׳סטות הושלמו
       </div>
     </div>
   );
 }
 
-function NavItem({ icon: Icon, label, sub, badge, accentColor, onClick = () => {} }) {
-  const iconBg  = accentColor ? `${accentColor}18` : VIOLET_L;
-  const iconClr = accentColor ?? VIOLET;
+function NavItem({ icon: Icon, label, sub, badge, onClick = () => {} }) {
   return (
-    <motion.button whileHover={{ x: -4, backgroundColor: "#f8f7ff" }} whileTap={{ scale: 0.97 }}
+    <motion.button whileHover={{ x: -4, backgroundColor: color.surface2 }} whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      style={{ width: "100%", display: "flex", alignItems: "center", gap: 13, padding: "11px 14px",
-        borderRadius: 14, border: "none", background: "transparent", cursor: "pointer",
-        fontFamily: "inherit", textAlign: "right", transition: "background 0.15s" }}>
-      <div style={{ width: 38, height: 38, borderRadius: 12, flexShrink: 0,
-        background: iconBg, display: "flex", alignItems: "center", justifyContent: "center",
-        position: "relative" }}>
-        <Icon size={17} color={iconClr} strokeWidth={2} />
+      style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px",
+        borderRadius: radius.input, border: "none", background: "transparent", cursor: "pointer",
+        fontFamily: font.family, textAlign: "right", transition: "background 0.15s" }}>
+      <div style={{ ...styles.iconBox(36), position: "relative" }}>
+        <Icon size={16} color={color.primaryText} strokeWidth={1.75} />
         {badge && (
-          <div style={{ position: "absolute", top: -3, left: -3, width: 13, height: 13,
-            borderRadius: "50%", background: "#f97316", border: "2px solid #fff",
+          <div style={{ position: "absolute", top: -4, insetInlineEnd: -4, minWidth: 14, height: 14,
+            borderRadius: 7, background: color.primary, border: `2px solid ${color.surface1}`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 7, fontWeight: 900, color: "#fff" }}>{badge}</div>
+            fontSize: 8, fontWeight: 700, color: "#fff", boxSizing: "content-box" }}>{badge}</div>
         )}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: SLATE, lineHeight: 1.3 }}>{label}</div>
-        {sub && <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 500, marginTop: 2 }}>{sub}</div>}
+        <div style={{ fontSize: 14, fontWeight: 600, color: color.textPrimary, lineHeight: 1.3 }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: color.textSecondary, fontWeight: 400, marginTop: 2 }}>{sub}</div>}
       </div>
-      <ChevronLeft size={15} color="#cbd5e1" strokeWidth={2} style={{ flexShrink: 0 }} />
+      <ChevronLeft size={15} color={color.textMuted} strokeWidth={2} style={{ flexShrink: 0 }} />
     </motion.button>
-  );
-}
-
-function ModeToggle({ isEmployer, onToggle }) {
-  return (
-    <LayoutGroup id="sidebar-mode">
-      <div style={{ display: "flex", background: "#f1f5f9", borderRadius: 50, padding: 4,
-        border: "1px solid #e2e8f0", margin: "0 0 6px" }}>
-        {[{ key: false, label: "עובד ⚡" }, { key: true, label: "מעסיק 💼" }].map(({ key, label }) => (
-          <button key={String(key)} onClick={() => onToggle(key)}
-            style={{ flex: 1, padding: "8px 6px", borderRadius: 50, border: "none",
-              background: "transparent", cursor: "pointer", fontFamily: "inherit",
-              fontSize: 12.5, fontWeight: 700, color: isEmployer === key ? "#fff" : MUTED,
-              position: "relative", zIndex: 1, transition: "color 0.2s" }}>
-            {isEmployer === key && (
-              <motion.div layoutId="mode-pill"
-                style={{ position: "absolute", inset: 0, borderRadius: 50, zIndex: -1,
-                  background: isEmployer
-                    ? "linear-gradient(135deg,#d97706,#92400e)"
-                    : "linear-gradient(135deg,#9333ea,#ec4899)",
-                  boxShadow: isEmployer
-                    ? "0 4px 14px rgba(217,119,6,0.35)"
-                    : "0 4px 14px rgba(147,51,234,0.35)" }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }} />
-            )}
-            {label}
-          </button>
-        ))}
-      </div>
-    </LayoutGroup>
-  );
-}
-
-function UserAvatar({ user, isEmployer, size = 64, onClick }) {
-  const name   = user?.fullName ?? "";
-  const src    = user?.avatarUrl;
-  const abbrev = initials(name);
-  const gradient = isEmployer
-    ? "linear-gradient(135deg,#fbbf24,#d97706)"
-    : "linear-gradient(135deg,#a78bfa,#7c3aed)";
-  const borderColor   = isEmployer ? "#fbbf24" : VIOLET;
-  const glowColor     = isEmployer ? "rgba(217,119,6,0.5)"  : "rgba(147,51,234,0.55)";
-  const glowColorSoft = isEmployer ? "rgba(217,119,6,0.25)" : "rgba(124,58,237,0.25)";
-
-  return (
-    <div style={{ position: "relative", flexShrink: 0 }}>
-      {/* Outer pulsing ring */}
-      <motion.div
-        animate={{ scale: [1, 1.08, 1], opacity: [0.55, 0.15, 0.55] }}
-        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-        style={{ position: "absolute", inset: -4, borderRadius: "50%",
-          border: `2px solid ${isEmployer ? "rgba(217,119,6,0.4)" : "rgba(147,51,234,0.4)"}`,
-          transition: "border-color 0.4s" }} />
-
-      {/* Avatar circle */}
-      <motion.div whileTap={{ scale: 0.92 }} onClick={onClick}
-        style={{ width: size, height: size, borderRadius: "50%",
-          cursor: onClick ? "pointer" : "default",
-          background: src ? "transparent" : gradient,
-          border: `2.5px solid ${borderColor}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: src
-            ? `0 4px 20px ${glowColorSoft}`
-            : `0 4px 20px ${glowColorSoft}, 0 0 0 3px rgba(167,139,250,0.15), inset 0 0 14px rgba(167,139,250,0.12)`,
-          overflow: "hidden", position: "relative" }}>
-
-        {src ? (
-          <img src={src} alt={name}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <>
-            {/* Neon shimmer sweep */}
-            <motion.div
-              animate={{ x: ["-120%", "220%"] }}
-              transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 2.4, ease: "easeInOut" }}
-              style={{ position: "absolute", top: 0, left: 0,
-                width: "45%", height: "100%",
-                background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)",
-                pointerEvents: "none", zIndex: 1 }} />
-
-            {/* First-letter initial */}
-            <span style={{ fontSize: size * 0.33, fontWeight: 900, color: "#fff",
-              fontFamily: "'Heebo',system-ui,sans-serif",
-              textShadow: `0 0 12px ${glowColor}`, zIndex: 2, lineHeight: 1 }}>
-              {abbrev || "?"}
-            </span>
-
-            {/* Tiny lightning badge — bottom-right of the initials circle */}
-            <div style={{ position: "absolute", bottom: 5, right: 4,
-              fontSize: 9, lineHeight: 1, zIndex: 3, filter: "drop-shadow(0 0 3px rgba(167,139,250,0.8))" }}>
-              ⚡
-            </div>
-          </>
-        )}
-      </motion.div>
-
-      {/* Online indicator */}
-      <div style={{ position: "absolute", bottom: 2, left: 2, width: 12, height: 12,
-        borderRadius: "50%", background: "#4ade80", border: "2px solid #fff",
-        boxShadow: "0 0 6px rgba(74,222,128,0.5)" }} />
-    </div>
   );
 }
 
@@ -194,7 +80,7 @@ export default function JestaSidebar({
   const [isEmployer, setIsEmployer] = useState(mode === "employer");
   useEffect(() => { setIsEmployer(mode === "employer"); }, [mode]);
   const isVerified  = user?.isVerified ?? false;
-  const displayName = isGuest ? "אורח 👀" : (user?.fullName ?? "משתמש");
+  const displayName = isGuest ? "אורח" : (user?.fullName ?? "משתמש");
 
   return (
     <AnimatePresence>
@@ -204,87 +90,54 @@ export default function JestaSidebar({
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.28 }} onClick={onClose}
             style={{ position: "absolute", inset: 0, zIndex: 5000,
-              background: "rgba(15,23,42,0.45)",
-              backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }} />
+              background: "rgba(10,10,15,0.6)" }} />
 
           <motion.div key="panel" dir="rtl"
             initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 340, damping: 34 }}
             style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "83%",
-              zIndex: 5001, background: SURFACE, borderLeft: `1px solid ${BORDER}`,
-              borderRadius: "0 0 0 28px", display: "flex", flexDirection: "column",
-              overflow: "hidden", fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
-              boxShadow: "-12px 0 48px rgba(109,40,217,0.12)" }}>
-
-            {/* Ambient glow */}
-            <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200,
-              borderRadius: "50%",
-              background: isEmployer
-                ? "radial-gradient(circle,rgba(217,119,6,0.08) 0%,transparent 70%)"
-                : "radial-gradient(circle,rgba(147,51,234,0.10) 0%,transparent 70%)",
-              pointerEvents: "none", transition: "background 0.5s" }} />
+              zIndex: 5001, background: color.surface1,
+              borderLeft: `1px solid ${color.borderSubtle}`,
+              display: "flex", flexDirection: "column",
+              overflow: "hidden", fontFamily: font.family,
+              boxShadow: "-12px 0 48px rgba(0,0,0,0.5)" }}>
 
             {/* Header */}
             <div style={{ padding: "52px 20px 16px", position: "relative" }}>
-              <motion.button whileTap={{ scale: 0.88 }} onClick={onClose}
-                style={{ position: "absolute", top: 16, left: 16, width: 32, height: 32,
-                  borderRadius: "50%", background: "#f1f5f9", border: "1px solid #e2e8f0",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer" }}>
-                <X size={15} color={MUTED} strokeWidth={2.5} />
+              <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
+                style={{ ...styles.iconButton, width: 32, height: 32, position: "absolute", top: 16, left: 16 }}>
+                <X size={15} color={color.textSecondary} strokeWidth={2} />
               </motion.button>
 
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 4 }}>
                 {/* Avatar */}
                 {isGuest ? (
-                  <div style={{ width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
-                    background: "linear-gradient(135deg,#e2e8f0,#cbd5e1)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 26, border: "2.5px solid #e2e8f0" }}>👀</div>
+                  <div style={{ ...styles.iconBox(64), borderRadius: "50%" }}>
+                    <Eye size={26} color={color.textMuted} strokeWidth={1.5} />
+                  </div>
                 ) : (
-                  <UserAvatar user={user} isEmployer={isEmployer}
+                  <Avatar size={64} src={user?.avatarUrl} employer={isEmployer} online surface={color.surface1}
                     onClick={() => { onOpenProfile?.(isEmployer ? "employer" : "worker"); onClose(); }} />
                 )}
 
                 {/* Identity */}
                 <div style={{ flex: 1, paddingTop: 4 }}>
-                  <div style={{ fontSize: 17, fontWeight: 900, color: SLATE,
-                    lineHeight: 1.25, marginBottom: 5 }}>{displayName}</div>
+                  <div style={{ fontSize: 17, ...font.heading,
+                    lineHeight: 1.25, marginBottom: 8 }}>{displayName}</div>
 
                   {isGuest ? (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5,
-                      background: "#f1f5f9", border: "1px solid #e2e8f0",
-                      borderRadius: 20, padding: "3px 10px" }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: MUTED }}>מצב צפייה</span>
-                    </div>
+                    <Badge variant="locked">מצב צפייה</Badge>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 5,
-                        background: GOLD_LT, border: "1px solid #fde68a",
-                        borderRadius: 20, padding: "3px 10px", width: "fit-content" }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: GOLD }}>
-                          {isEmployer ? "💼 מעסיק" : `${user?.rating?.toFixed(1) ?? "–"} ⭐`}
-                        </span>
-                        {!isEmployer && (
-                          <span style={{ fontSize: 11, color: "#92400e", fontWeight: 500, opacity: 0.7 }}>
-                            {user?.completedJobs ?? 0} ג׳סטות
-                          </span>
-                        )}
-                      </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                      <Badge variant="primary" icon={isEmployer ? Briefcase : Star}>
+                        {isEmployer ? "מעסיק" : `${user?.rating?.toFixed(1) ?? "–"} · ${user?.completedJobs ?? 0} ג׳סטות`}
+                      </Badge>
 
                       {/* Verification pill */}
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4,
-                        background: isVerified ? "rgba(74,222,128,0.1)" : "rgba(251,191,36,0.1)",
-                        border: `1px solid ${isVerified ? "rgba(74,222,128,0.3)" : "rgba(251,191,36,0.3)"}`,
-                        borderRadius: 20, padding: "2px 9px", width: "fit-content" }}>
-                        {isVerified
-                          ? <ShieldCheck size={11} color="#4ade80" strokeWidth={2.5} />
-                          : <ShieldAlert size={11} color="#fbbf24" strokeWidth={2.5} />}
-                        <span style={{ fontSize: 10.5, fontWeight: 700,
-                          color: isVerified ? "#4ade80" : "#fbbf24" }}>
-                          {isVerified ? "מאומת ✓" : "מייל לא מאומת ⚠️"}
-                        </span>
-                      </div>
+                      <Badge variant={isVerified ? "approved" : "pending"}
+                        icon={isVerified ? ShieldCheck : ShieldAlert}>
+                        {isVerified ? "מאומת" : "מייל לא מאומת"}
+                      </Badge>
                     </div>
                   )}
                 </div>
@@ -298,30 +151,38 @@ export default function JestaSidebar({
 
             <Divider />
 
-            {/* Mode toggle */}
-            <div style={{ padding: "4px 14px 6px" }}>
-              <ModeToggle isEmployer={isEmployer} onToggle={(val) => {
-                setIsEmployer(val);
-                onSwitchMode?.(val ? "employer" : "worker");
-                onClose();
-              }} />
+            {/* Role toggle — segmented control, shared color language */}
+            <div style={{ padding: "4px 16px 8px" }}>
+              <SegmentedControl
+                id="sidebar-mode"
+                value={isEmployer}
+                onChange={(val) => {
+                  setIsEmployer(val);
+                  onSwitchMode?.(val ? "employer" : "worker");
+                  onClose();
+                }}
+                options={[
+                  { key: false, label: "עובד",  icon: Zap },
+                  { key: true,  label: "מעסיק", icon: Briefcase },
+                ]}
+              />
             </div>
 
             <Divider />
 
             {/* Nav */}
-            <div style={{ padding: "4px 10px", flex: 1, overflowY: "auto" }}>
+            <div style={{ padding: "4px 12px", flex: 1, overflowY: "auto" }}>
               <AnimatePresence mode="wait">
                 {isEmployer ? (
                   <motion.div key="employer-nav"
                     initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.22 }}>
-                    <NavItem icon={BarChart3}  label="דאשבורד וסטטיסטיקות" sub="הג׳סטות והמועמדים שלך" accentColor="#d97706" onClick={() => { onGoToEmployerDashboard?.(); onClose(); }} />
-                    <NavItem icon={PlusCircle} label="פרסם ג׳סטה חדשה"   sub="הוסף משרה חדשה"    accentColor="#059669" onClick={() => { onOpenCreateModal?.(); onClose(); }} />
+                    <NavItem icon={BarChart3}  label="דאשבורד וסטטיסטיקות" sub="הג׳סטות והמועמדים שלך" onClick={() => { onGoToEmployerDashboard?.(); onClose(); }} />
+                    <NavItem icon={PlusCircle} label="פרסם ג׳סטה חדשה"   sub="הוסף משרה חדשה"    onClick={() => { onOpenCreateModal?.(); onClose(); }} />
                     {/* TODO: payments history needs a payments table + endpoint
                         (none exist yet) — shown disabled until then */}
                     <div style={{ opacity: 0.45, pointerEvents: "none" }}>
-                      <NavItem icon={Receipt} label="היסטוריית תשלומים" sub="בקרוב" accentColor="#0369a1" />
+                      <NavItem icon={Receipt} label="היסטוריית תשלומים" sub="בקרוב" />
                     </div>
                   </motion.div>
                 ) : (
@@ -341,67 +202,52 @@ export default function JestaSidebar({
 
               <Divider />
 
-              {/* CTA button */}
-              <div style={{ padding: "10px 4px 6px" }}>
-                <motion.button whileHover={{ scale: 1.015 }} whileTap={{ scale: 0.97 }}
+              {/* CTA — the single primary action in the drawer */}
+              <div style={{ padding: "8px 4px" }}>
+                <PrimaryButton
                   onClick={() => { isEmployer ? onGoToEmployerDashboard?.() : onOpenCreateModal?.(); onClose(); }}
-                  style={{ width: "100%", padding: "15px 20px", borderRadius: 50, border: "none",
-                    background: isEmployer
-                      ? "linear-gradient(135deg,#d97706,#92400e)"
-                      : "linear-gradient(135deg,#9333ea,#ec4899)",
-                    color: "#fff", fontSize: 14.5, fontWeight: 900, cursor: "pointer",
-                    fontFamily: "inherit",
-                    boxShadow: isEmployer ? "0 6px 24px rgba(217,119,6,0.35)" : "0 6px 24px rgba(147,51,234,0.35)",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    position: "relative", overflow: "hidden", transition: "background 0.35s, box-shadow 0.35s" }}>
-                  <motion.div animate={{ x: ["-120%","220%"] }}
-                    transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.8, ease: "easeInOut" }}
-                    style={{ position: "absolute", top: 0, left: 0, width: "45%", height: "100%",
-                      background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent)",
-                      pointerEvents: "none" }} />
-                  <Briefcase size={16} color="rgba(255,255,255,0.9)" strokeWidth={2} />
-                  <span>{isEmployer ? "דאשבורד מעסיק 📊" : "צריך עובד? פרסם ג׳סטה 💼"}</span>
-                </motion.button>
+                  style={{ fontSize: 14 }}>
+                  <Briefcase size={16} color="#fff" strokeWidth={2} />
+                  <span>{isEmployer ? "דאשבורד מעסיק" : "צריך עובד? פרסם ג׳סטה"}</span>
+                </PrimaryButton>
               </div>
             </div>
 
             {/* Footer */}
-            <div style={{ padding: "10px 14px 24px" }}>
+            <div style={{ padding: "8px 16px 24px" }}>
               <Divider />
               {/* TODO: replace with the real support WhatsApp number once one
                   exists — disabled until then so the button isn't a dead end */}
               <motion.button disabled
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "11px 8px", borderRadius: 12, border: "none", opacity: 0.45,
-                  background: "transparent", cursor: "not-allowed", fontFamily: "inherit", textAlign: "right" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                  background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <MessageSquare size={16} color={MUTED} strokeWidth={2} />
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 12,
+                  padding: "12px 8px", borderRadius: radius.input, border: "none", opacity: 0.45,
+                  background: "transparent", cursor: "not-allowed", fontFamily: font.family, textAlign: "right" }}>
+                <div style={styles.iconBox(32)}>
+                  <MessageSquare size={15} color={color.textSecondary} strokeWidth={1.75} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: MUTED }}>עזרה ב-WhatsApp 💬 (בקרוב)</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: color.textSecondary }}>עזרה ב-WhatsApp (בקרוב)</div>
                 </div>
               </motion.button>
 
               {!isGuest && onSignOut && (
-                <motion.button whileHover={{ x: -3 }} whileTap={{ scale: 0.97 }}
+                <motion.button whileHover={{ x: -3 }} whileTap={{ scale: 0.98 }}
                   onClick={() => { onSignOut(); onClose(); }}
-                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 10,
-                    padding: "10px 8px", borderRadius: 12, border: "none",
-                    background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                    background: "rgba(239,68,68,0.08)", display: "flex",
-                    alignItems: "center", justifyContent: "center" }}>
-                    <LogOut size={16} color="#ef4444" strokeWidth={2} />
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 8px", borderRadius: radius.input, border: "none",
+                    background: "transparent", cursor: "pointer", fontFamily: font.family, textAlign: "right" }}>
+                  {/* Destructive: surface bg, red text only */}
+                  <div style={styles.iconBox(32)}>
+                    <LogOut size={15} color={color.danger} strokeWidth={1.75} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#ef4444" }}>יציאה מהחשבון</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: color.danger }}>יציאה מהחשבון</div>
                   </div>
                 </motion.button>
               )}
 
-              <div style={{ textAlign: "left", marginTop: 6 }}>
-                <span style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 500 }}>Jesta v1.0.0</span>
+              <div style={{ textAlign: "left", marginTop: 8 }}>
+                <span style={{ fontSize: 10, color: color.textMuted, fontWeight: 400 }}>Jesta v1.0.0</span>
               </div>
             </div>
           </motion.div>

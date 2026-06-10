@@ -8,7 +8,9 @@
  *   userData  object (optional overrides)
  */
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Star, CheckCircle2, MapPin, Zap, Shield, Briefcase } from "lucide-react";
+import { X, Star, Zap, Briefcase, Trophy } from "lucide-react";
+import { color, radius, font, styles } from "../design-system";
+import { Avatar, Badge, SheetHandle } from "./ui";
 
 // Neutral fallbacks only — real values come from the `userData` prop
 // (worker: { name, rating, completedJobs, id } from ApplicantCard, etc.)
@@ -33,11 +35,6 @@ const EMPLOYER_DEFAULTS = {
   badges: [],
 };
 
-const SLATE  = "#0f172a";
-const MUTED  = "#64748b";
-const VIOLET = "#7c3aed";
-const GOLD   = "#d97706";
-
 export default function JestaPublicProfile({ isOpen, onClose, type = "worker", userData }) {
   const isWorker = type === "worker";
   const defaults = isWorker ? WORKER_DEFAULTS : EMPLOYER_DEFAULTS;
@@ -54,7 +51,9 @@ export default function JestaPublicProfile({ isOpen, onClose, type = "worker", u
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.22 }}
           onClick={onClose}
-          style={{ position: "absolute", inset: 0, zIndex: 7000, background: "rgba(6,3,15,0.72)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          style={{ position: "absolute", inset: 0, zIndex: 7000,
+            background: "rgba(10,10,15,0.72)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <motion.div
             key="profile-sheet"
@@ -62,75 +61,83 @@ export default function JestaPublicProfile({ isOpen, onClose, type = "worker", u
             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 340, damping: 34 }}
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", background: "#fff", borderRadius: "28px 28px 0 0", maxHeight: "82%", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif" }}
+            style={{ width: "100%", ...styles.sheet, maxHeight: "82%",
+              display: "flex", flexDirection: "column", overflow: "hidden",
+              fontFamily: font.family }}
           >
-            {/* Handle */}
-            <div style={{ padding: "10px 0 0", display: "flex", justifyContent: "center" }}>
-              <div style={{ width: 44, height: 5, borderRadius: 3, background: "#ddd6fe", opacity: 0.8 }} />
-            </div>
+            <SheetHandle />
 
             {/* Close */}
-            <div style={{ display: "flex", justifyContent: "flex-left", padding: "8px 16px 0" }}>
-              <motion.button whileTap={{ scale: 0.88 }} onClick={onClose}
-                style={{ width: 32, height: 32, borderRadius: "50%", background: "#f1f5f9", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <X size={15} color={MUTED} strokeWidth={2.5} />
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 20px" }}>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
+                style={{ ...styles.iconButton, width: 32, height: 32 }}>
+                <X size={15} color={color.textSecondary} strokeWidth={2} />
               </motion.button>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "12px 20px 32px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 32px" }}>
               {/* Avatar + name */}
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
-                <div style={{ width: 72, height: 72, borderRadius: "50%", background: isWorker ? "linear-gradient(135deg,#a78bfa,#7c3aed)" : "linear-gradient(135deg,#fbbf24,#d97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0, border: `3px solid ${isWorker ? "#ede9fe" : "#fde68a"}`, boxShadow: `0 6px 20px ${isWorker ? "rgba(124,58,237,0.25)" : "rgba(217,119,6,0.25)"}` }}>
-                  {isWorker ? "🧑" : "👨‍💼"}
-                </div>
+                <Avatar size={72} employer={!isWorker} src={data.avatarUrl} surface={color.surface1} />
                 <div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: SLATE }}>{data.name}</div>
+                  <div style={{ fontSize: 20, ...font.heading }}>{data.name}</div>
                   {!isWorker && data.business && (
-                    <div style={{ fontSize: 13, color: VIOLET, fontWeight: 700, marginTop: 2 }}>{data.business}</div>
+                    <div style={{ fontSize: 13, color: color.primaryText, fontWeight: 600, marginTop: 2 }}>{data.business}</div>
                   )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                    {[1,2,3,4,5].map(s => <Star key={s} size={12} fill={s <= Math.round(data.rating) ? "#fbbf24" : "#e2e8f0"} color={s <= Math.round(data.rating) ? "#fbbf24" : "#e2e8f0"} />)}
-                    <span style={{ fontSize: 13, color: MUTED, fontWeight: 700, marginRight: 3 }}>{data.rating}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8 }}>
+                    {[1,2,3,4,5].map(s => (
+                      <Star key={s} size={12}
+                        fill={s <= Math.round(data.rating) ? color.warning : "transparent"}
+                        color={s <= Math.round(data.rating) ? color.warning : color.textMuted} />
+                    ))}
+                    <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 600, marginInlineStart: 4 }}>{data.rating}</span>
                   </div>
                 </div>
               </div>
 
               {/* Stats */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 18 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
                 {[
                   { label: isWorker ? "משמרות" : "ג׳סטות", value: isWorker ? data.shifts : data.totalShifts },
-                  { label: "דירוג", value: `${data.rating} ⭐` },
-                  { label: "עיר", value: data.city },
+                  { label: "דירוג", value: data.rating },
+                  { label: "עיר", value: data.city || "—" },
                 ].map((s, i) => (
-                  <div key={i} style={{ background: "#f8f7ff", borderRadius: 14, padding: "10px 8px", textAlign: "center", border: "1px solid #ede9fe" }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: SLATE }}>{s.value}</div>
-                    <div style={{ fontSize: 10.5, color: MUTED, fontWeight: 500, marginTop: 2 }}>{s.label}</div>
+                  <div key={i} style={{ background: color.surface2, borderRadius: radius.input,
+                    padding: "12px 8px", textAlign: "center",
+                    border: `1px solid ${color.borderSubtle}` }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: color.textPrimary }}>{s.value}</div>
+                    <div style={{ fontSize: 11, color: color.textSecondary, fontWeight: 500, marginTop: 4 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
 
               {/* Level badge */}
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 20, padding: "5px 14px", marginBottom: 14 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>🏆 {data.level}</span>
-              </div>
+              <Badge variant="pending" icon={Trophy} style={{ marginBottom: 16 }}>{data.level}</Badge>
 
               {/* Bio */}
-              <div style={{ fontSize: 14, color: "#475569", lineHeight: 1.65, marginBottom: 18 }}>{data.bio}</div>
+              {data.bio && (
+                <div style={{ fontSize: 14, ...font.body, marginBottom: 20 }}>{data.bio}</div>
+              )}
 
               {/* Badges */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-                {data.badges?.map((badge, i) => (
-                  <div key={i} style={{ background: "#f5f3ff", border: "1px solid #ede9fe", borderRadius: 20, padding: "5px 13px", fontSize: 12, fontWeight: 700, color: VIOLET }}>{badge}</div>
-                ))}
-              </div>
+              {data.badges?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+                  {data.badges.map((badge, i) => (
+                    <Badge key={i} variant="primary">{badge}</Badge>
+                  ))}
+                </div>
+              )}
 
               {/* CTA */}
               {/* TODO: direct job offers / direct contact require a backend
                   endpoint (e.g. POST /offers) that doesn't exist yet —
                   disabled until then rather than pretending to work. */}
               <motion.button disabled
-                style={{ width: "100%", padding: "14px", borderRadius: 50, border: "none", background: "#e2e8f0", color: "#94a3b8", fontSize: 15, fontWeight: 900, cursor: "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                {isWorker ? <><Zap size={16} /> שלח הצעת עבודה (בקרוב)</> : <><Briefcase size={16} /> צור קשר עם המעסיק (בקרוב)</>}
+                style={{ ...styles.buttonSecondary, marginTop: 4,
+                  color: color.textMuted, cursor: "not-allowed" }}>
+                {isWorker
+                  ? <><Zap size={16} strokeWidth={1.75} /> שלח הצעת עבודה (בקרוב)</>
+                  : <><Briefcase size={16} strokeWidth={1.75} /> צור קשר עם המעסיק (בקרוב)</>}
               </motion.button>
             </div>
           </motion.div>

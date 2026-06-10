@@ -1,5 +1,5 @@
 /**
- * AuthScreen — Jesta dark-luxury onboarding
+ * AuthScreen — Jesta dark onboarding
  *
  * Screens:
  *   "auth"  — login / register form
@@ -11,36 +11,31 @@
  */
 import { useState, useRef, createRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, ArrowRight, RefreshCw } from "lucide-react";
+import { Camera, ArrowRight, RefreshCw, Zap, Search, ClipboardList, Check } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { login, register, verifyEmailOtp, resendOtp } from "../services/api";
+import { color, radius, shadow, font, styles } from "../design-system";
+import { SegmentedControl, PrimaryButton, SecondaryButton, Spinner } from "./ui";
 
 // ── BoltHero ──────────────────────────────────────────────────────────────────
 function BoltHero() {
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <motion.div animate={{ scale: [1, 1.35, 1], opacity: [0.12, 0, 0.12] }}
+      <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.18, 0, 0.18] }}
         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        style={{ position: "absolute", width: 180, height: 180, borderRadius: "50%",
-          background: "radial-gradient(circle, #9333ea 0%, transparent 70%)" }} />
-      <motion.div animate={{ scale: [1, 1.22, 1], opacity: [0.22, 0, 0.22] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-        style={{ position: "absolute", width: 130, height: 130, borderRadius: "50%",
-          background: "radial-gradient(circle, #a855f7 0%, transparent 70%)" }} />
-      <motion.div animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.15, 0.4] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
-        style={{ position: "absolute", width: 90, height: 90, borderRadius: "50%",
-          background: "radial-gradient(circle, #c084fc 0%, transparent 70%)" }} />
+        style={{ position: "absolute", width: 160, height: 160, borderRadius: "50%",
+          background: `radial-gradient(circle, ${color.primaryGlow} 0%, transparent 70%)` }} />
       <motion.div animate={{ y: [0, -6, 0] }}
         transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
         style={{
-          width: 72, height: 72, borderRadius: 22,
-          background: "linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #ec4899 100%)",
+          width: 72, height: 72, borderRadius: 20,
+          background: `linear-gradient(135deg, ${color.surface3} 0%, ${color.primarySoft} 100%)`,
+          border: `1px solid ${color.borderStrong}`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 0 40px rgba(147,51,234,0.7), 0 0 80px rgba(147,51,234,0.3)",
+          boxShadow: shadow.glow,
           position: "relative", zIndex: 1,
         }}>
-        <span style={{ fontSize: 36, lineHeight: 1 }}>⚡</span>
+        <Zap size={32} color={color.primaryText} strokeWidth={1.75} />
       </motion.div>
     </div>
   );
@@ -49,22 +44,17 @@ function BoltHero() {
 // ── Text field ────────────────────────────────────────────────────────────────
 function Field({ label, type = "text", value, onChange, placeholder }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <label style={{ display: "block", fontSize: 11, color: "#a78bfa",
-        fontWeight: 700, marginBottom: 4, letterSpacing: 0.4 }}>
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ display: "block", fontSize: 12, color: color.textSecondary,
+        fontWeight: 500, marginBottom: 4 }}>
         {label}
       </label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)}
         placeholder={placeholder} dir="auto"
-        style={{
-          width: "100%", boxSizing: "border-box",
-          padding: "12px 14px", borderRadius: 12,
-          border: "1px solid rgba(167,139,250,0.22)",
-          background: "rgba(255,255,255,0.04)",
-          color: "#f5f3ff", fontSize: 14, fontWeight: 500,
-          fontFamily: "inherit", outline: "none",
-        }}
+        onFocus={e => (e.target.style.borderColor = color.primary)}
+        onBlur={e => (e.target.style.borderColor = color.borderSubtle)}
+        style={styles.input}
       />
     </div>
   );
@@ -75,37 +65,35 @@ function AvatarPicker({ preview, uploading, onFileChange }) {
   const inputRef = useRef(null);
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 11, color: "#a78bfa",
-        fontWeight: 700, marginBottom: 10, letterSpacing: 0.4, alignSelf: "flex-start" }}>
+      <label style={{ display: "block", fontSize: 12, color: color.textSecondary,
+        fontWeight: 500, marginBottom: 8, alignSelf: "flex-start" }}>
         תמונת פרופיל (אופציונלי)
       </label>
-      <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+      <motion.div whileTap={{ scale: 0.97 }}
         onClick={() => inputRef.current?.click()}
         style={{
           width: 80, height: 80, borderRadius: "50%", cursor: "pointer",
-          border: "2px dashed rgba(167,139,250,0.4)",
-          background: preview ? "transparent" : "rgba(124,58,237,0.08)",
+          border: `2px dashed ${color.borderStrong}`,
+          background: preview ? color.surface2 : color.surface3,
           display: "flex", alignItems: "center", justifyContent: "center",
           position: "relative", overflow: "hidden",
-          boxShadow: preview ? "0 0 24px rgba(124,58,237,0.35)" : "none",
         }}>
         {uploading ? (
-          <motion.div animate={{ rotate: 360 }}
-            transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-            style={{ width: 22, height: 22, borderRadius: "50%",
-              border: "2.5px solid rgba(167,139,250,0.4)", borderTopColor: "#a78bfa" }} />
+          <Spinner size={22} />
         ) : preview ? (
           <img src={preview} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <div style={{ textAlign: "center" }}>
-            <Camera size={22} color="rgba(167,139,250,0.6)" />
-            <div style={{ fontSize: 9, color: "rgba(167,139,250,0.5)", marginTop: 4, fontWeight: 600 }}>העלה תמונה</div>
+            <Camera size={22} color={color.textSecondary} strokeWidth={1.5} />
+            <div style={{ fontSize: 9, color: color.textMuted, marginTop: 4, fontWeight: 500 }}>העלה תמונה</div>
           </div>
         )}
       </motion.div>
       <input ref={inputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
       {preview && (
-        <div style={{ fontSize: 10, color: "#4ade80", fontWeight: 600, marginTop: 6 }}>✓ תמונה נבחרה</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: color.success, fontWeight: 500, marginTop: 8 }}>
+          <Check size={11} strokeWidth={2.5} /> תמונה נבחרה
+        </div>
       )}
     </div>
   );
@@ -157,11 +145,11 @@ function OtpInput({ value, onChange }) {
           onKeyDown={e => handleKeyDown(i, e)}
           onPaste={handlePaste}
           style={{
-            width: 44, height: 54, textAlign: "center", fontSize: 24, fontWeight: 900,
-            borderRadius: 12, border: `1.5px solid ${d.trim() ? "rgba(124,58,237,0.7)" : "rgba(167,139,250,0.22)"}`,
-            background: d.trim() ? "rgba(124,58,237,0.15)" : "rgba(255,255,255,0.04)",
-            color: "#c4b5fd", outline: "none", fontFamily: "inherit",
-            boxShadow: d.trim() ? "0 0 12px rgba(124,58,237,0.25)" : "none",
+            width: 44, height: 56, textAlign: "center", fontSize: 24, fontWeight: 700,
+            borderRadius: radius.input,
+            border: `1px solid ${d.trim() ? color.primary : color.borderSubtle}`,
+            background: d.trim() ? color.primarySoft : color.surface3,
+            color: color.textPrimary, outline: "none", fontFamily: font.family,
             transition: "all 0.15s",
           }}
         />
@@ -174,19 +162,32 @@ function OtpInput({ value, onChange }) {
 function Wrapper({ children }) {
   return (
     <div dir="rtl" style={{
-      width: "100%", height: "100%", display: "flex", flexDirection: "column",
-      background: "linear-gradient(180deg, #06030f 0%, #0d0824 60%, #110932 100%)",
-      fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
+      ...styles.screen,
       overflow: "hidden", position: "relative",
     }}>
       {/* Ambient grid */}
       <div style={{
         position: "absolute", inset: 0, opacity: 0.04, pointerEvents: "none",
         backgroundImage:
-          "linear-gradient(#7c3aed 1px, transparent 1px), linear-gradient(90deg, #7c3aed 1px, transparent 1px)",
+          `linear-gradient(${color.primary} 1px, transparent 1px), linear-gradient(90deg, ${color.primary} 1px, transparent 1px)`,
         backgroundSize: "40px 40px",
       }} />
       {children}
+    </div>
+  );
+}
+
+// Bottom card shared by both sub-screens
+const cardStyle = {
+  ...styles.sheet,
+  padding: "0 20px 32px",
+  position: "relative", zIndex: 2, flexShrink: 0,
+};
+
+function Handle() {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 20px" }}>
+      <div style={styles.sheetHandle} />
     </div>
   );
 }
@@ -300,7 +301,7 @@ export default function AuthScreen({ onAuth, onGuest }) {
     setOtpCode("");
     try {
       await resendOtp(pendingEmail);
-      setError("✅ קוד חדש נשלח למייל שלך");
+      setError("קוד חדש נשלח למייל שלך");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -323,12 +324,12 @@ export default function AuthScreen({ onAuth, onGuest }) {
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.2 }} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#e9d5ff", marginBottom: 8 }}>
-              בדוק את המייל שלך 📬
+            <div style={{ fontSize: 22, ...font.heading, marginBottom: 8 }}>
+              בדוק את המייל שלך
             </div>
-            <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 13, color: color.textSecondary, lineHeight: 1.6 }}>
               שלחנו קוד בן 6 ספרות אל<br />
-              <span style={{ color: "#a78bfa", fontWeight: 700 }}>{pendingEmail}</span>
+              <span style={{ color: color.primaryText, fontWeight: 600 }}>{pendingEmail}</span>
             </div>
           </motion.div>
         </div>
@@ -337,31 +338,23 @@ export default function AuthScreen({ onAuth, onGuest }) {
         <motion.div
           initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 280, damping: 30, delay: 0.3 }}
-          style={{
-            background: "linear-gradient(180deg, #12093a 0%, #0f0730 100%)",
-            borderTop: "1px solid rgba(167,139,250,0.18)",
-            borderRadius: "28px 28px 0 0",
-            padding: "24px 20px 32px",
-            position: "relative", zIndex: 2, flexShrink: 0,
-          }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2,
-            background: "rgba(167,139,250,0.25)", margin: "0 auto 20px" }} />
+          style={cardStyle}>
+          <Handle />
 
           {/* Back button */}
-          <motion.button whileTap={{ scale: 0.9 }}
+          <motion.button whileTap={{ scale: 0.95 }}
             onClick={() => { setScreen("auth"); setError(null); }}
             style={{ background: "none", border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
-              color: "#6b7280", fontSize: 13, fontWeight: 600,
-              fontFamily: "inherit", marginBottom: 16 }}>
+              display: "flex", alignItems: "center", gap: 8,
+              color: color.textSecondary, fontSize: 13, fontWeight: 500,
+              fontFamily: font.family, marginBottom: 16 }}>
             <ArrowRight size={14} /> חזרה
           </motion.button>
 
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#e9d5ff",
-            textAlign: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 16, ...font.heading, textAlign: "center", marginBottom: 4 }}>
             הזן קוד אימות
           </div>
-          <div style={{ fontSize: 12, color: "#6b7280", textAlign: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: color.textSecondary, textAlign: "center", marginBottom: 4 }}>
             הקוד תקף ל-30 דקות
           </div>
 
@@ -372,7 +365,7 @@ export default function AuthScreen({ onAuth, onGuest }) {
             {error && (
               <motion.div initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                style={{ fontSize: 12, color: "#f87171", textAlign: "center",
+                style={{ fontSize: 12, color: color.danger, textAlign: "center",
                   marginBottom: 8, padding: "4px 0" }}>
                 {error}
               </motion.div>
@@ -380,34 +373,17 @@ export default function AuthScreen({ onAuth, onGuest }) {
           </AnimatePresence>
 
           {/* Verify button */}
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-            onClick={handleVerifyOtp} disabled={loading}
-            style={{
-              width: "100%", padding: "14px", borderRadius: 16, border: "none",
-              background: loading
-                ? "rgba(124,58,237,0.4)"
-                : "linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #ec4899 100%)",
-              color: "#fff", fontSize: 15, fontWeight: 900,
-              cursor: loading ? "not-allowed" : "pointer",
-              fontFamily: "inherit", marginBottom: 14,
-              boxShadow: loading ? "none" : "0 6px 22px rgba(124,58,237,0.4)",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}>
-            {loading ? (
-              <motion.div animate={{ rotate: 360 }}
-                transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-                style={{ width: 18, height: 18, borderRadius: "50%",
-                  border: "2.5px solid rgba(255,255,255,0.5)", borderTopColor: "#fff" }} />
-            ) : (
-              <>⚡ אמת וכנס לחשבון</>
+          <PrimaryButton onClick={handleVerifyOtp} disabled={loading} style={{ marginBottom: 16 }}>
+            {loading ? <Spinner size={18} /> : (
+              <><Zap size={16} strokeWidth={2} /> אמת וכנס לחשבון</>
             )}
-          </motion.button>
+          </PrimaryButton>
 
           {/* Resend */}
-          <motion.button whileTap={{ scale: 0.95 }} onClick={handleResend} disabled={loading}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleResend} disabled={loading}
             style={{ width: "100%", background: "none", border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              color: "#6b7280", fontSize: 12, fontWeight: 600, fontFamily: "inherit" }}>
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              color: color.textSecondary, fontSize: 12, fontWeight: 500, fontFamily: font.family }}>
             <RefreshCw size={13} /> לא קיבלתי קוד — שלח שוב
           </motion.button>
         </motion.div>
@@ -424,8 +400,7 @@ export default function AuthScreen({ onAuth, onGuest }) {
         padding: "0 24px", position: "relative", zIndex: 1 }}>
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          style={{ fontSize: 13, fontWeight: 700, color: "#a78bfa",
-            letterSpacing: 4, textTransform: "uppercase", marginBottom: 28 }}>
+          style={{ ...font.overline, color: color.primaryText, letterSpacing: "0.32em", marginBottom: 28 }}>
           JESTA
         </motion.div>
         <motion.div initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}
@@ -435,63 +410,33 @@ export default function AuthScreen({ onAuth, onGuest }) {
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.3 }} style={{ textAlign: "center" }}>
-          <div style={{
-            fontSize: 24, fontWeight: 900, lineHeight: 1.25, marginBottom: 8,
-            background: "linear-gradient(135deg, #e9d5ff 0%, #c4b5fd 40%, #ec4899 100%)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          }}>
-            סוגרים ג׳סטה.<br />עושים כסף. ⚡
+          <div style={{ fontSize: 24, ...font.heading, lineHeight: 1.25, marginBottom: 8 }}>
+            סוגרים ג׳סטה.<br />עושים כסף.
           </div>
-          <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 500 }}>
+          <div style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>
             מצא עבודה קצרה ליד הבית תוך דקות
           </div>
         </motion.div>
-        {[
-          { top: "15%", left: "8%",   delay: 0,   size: 6 },
-          { top: "25%", right: "10%", delay: 0.7, size: 4 },
-          { top: "60%", left: "5%",   delay: 1.2, size: 5 },
-          { top: "70%", right: "8%",  delay: 0.4, size: 7 },
-        ].map((s, i) => (
-          <motion.div key={i}
-            animate={{ opacity: [0, 0.7, 0], scale: [0.5, 1, 0.5] }}
-            transition={{ duration: 2.5, delay: s.delay, repeat: Infinity, repeatDelay: 1.5 }}
-            style={{ position: "absolute", top: s.top, left: s.left, right: s.right,
-              width: s.size, height: s.size, borderRadius: "50%",
-              background: "#a855f7", boxShadow: `0 0 ${s.size * 2}px #a855f7` }} />
-        ))}
       </div>
 
       {/* Auth card */}
       <motion.div
         initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 280, damping: 30, delay: 0.45 }}
-        style={{
-          background: "linear-gradient(180deg, #12093a 0%, #0f0730 100%)",
-          borderTop: "1px solid rgba(167,139,250,0.18)",
-          borderRadius: "28px 28px 0 0",
-          padding: "24px 20px 32px",
-          position: "relative", zIndex: 2, flexShrink: 0,
-          maxHeight: "72%", overflowY: "auto",
-        }}>
-        <div style={{ width: 36, height: 4, borderRadius: 2,
-          background: "rgba(167,139,250,0.25)", margin: "0 auto 20px" }} />
+        style={{ ...cardStyle, maxHeight: "72%", overflowY: "auto" }}>
+        <Handle />
 
         {/* Tab switcher */}
-        <div style={{ display: "flex", background: "rgba(255,255,255,0.05)",
-          borderRadius: 12, padding: 3, marginBottom: 18 }}>
-          {[{ key: "login", label: "כניסה" }, { key: "register", label: "הרשמה" }].map(({ key, label }) => (
-            <button key={key} onClick={() => { setTab(key); setError(null); }}
-              style={{
-                flex: 1, padding: "9px 0", border: "none", borderRadius: 10,
-                fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                background: tab === key ? "linear-gradient(135deg, #7c3aed, #9333ea)" : "transparent",
-                color: tab === key ? "#fff" : "#6b7280",
-                boxShadow: tab === key ? "0 2px 12px rgba(124,58,237,0.4)" : "none",
-                transition: "all 0.2s",
-              }}>
-              {label}
-            </button>
-          ))}
+        <div style={{ marginBottom: 20 }}>
+          <SegmentedControl
+            id="auth-tab"
+            value={tab}
+            onChange={(key) => { setTab(key); setError(null); }}
+            options={[
+              { key: "login",    label: "כניסה" },
+              { key: "register", label: "הרשמה" },
+            ]}
+          />
         </div>
 
         <AnimatePresence mode="wait">
@@ -509,32 +454,21 @@ export default function AuthScreen({ onAuth, onGuest }) {
                 <Field label="שם מלא" value={fullName}
                   onChange={setFullName} placeholder="ישראל ישראלי" />
 
-                {/* Role picker */}
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: "block", fontSize: 11, color: "#a78bfa",
-                    fontWeight: 700, marginBottom: 4, letterSpacing: 0.4 }}>
+                {/* Role picker — segmented control, shared color language */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: "block", fontSize: 12, color: color.textSecondary,
+                    fontWeight: 500, marginBottom: 4 }}>
                     אני רוצה ל…
                   </label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {[
-                      { val: "WORKER",   label: "מצוא עבודה 🔍" },
-                      { val: "EMPLOYER", label: "לפרסם משרה 📋" },
-                    ].map(({ val, label }) => (
-                      <button key={val} onClick={() => setRole(val)}
-                        style={{
-                          flex: 1, padding: "9px 4px", border: "none", borderRadius: 10,
-                          fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                          background: role === val
-                            ? "linear-gradient(135deg, #7c3aed, #ec4899)"
-                            : "rgba(255,255,255,0.05)",
-                          color: role === val ? "#fff" : "#6b7280",
-                          boxShadow: role === val ? "0 2px 10px rgba(124,58,237,0.35)" : "none",
-                          transition: "all 0.2s",
-                        }}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedControl
+                    id="auth-role"
+                    value={role}
+                    onChange={setRole}
+                    options={[
+                      { key: "WORKER",   label: "למצוא עבודה", icon: Search },
+                      { key: "EMPLOYER", label: "לפרסם משרה",  icon: ClipboardList },
+                    ]}
+                  />
                 </div>
 
                 {/* Avatar upload */}
@@ -553,57 +487,32 @@ export default function AuthScreen({ onAuth, onGuest }) {
           {error && (
             <motion.div initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-              style={{ fontSize: 12, color: "#f87171", textAlign: "center",
+              style={{ fontSize: 12, color: color.danger, textAlign: "center",
                 marginBottom: 8, padding: "4px 0" }}>
               {error}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Submit */}
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-          onClick={handleSubmit} disabled={loading || avatarUploading}
-          style={{
-            width: "100%", padding: "14px", borderRadius: 16, border: "none",
-            background: (loading || avatarUploading)
-              ? "rgba(124,58,237,0.4)"
-              : "linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #ec4899 100%)",
-            color: "#fff", fontSize: 15, fontWeight: 900,
-            cursor: (loading || avatarUploading) ? "not-allowed" : "pointer",
-            fontFamily: "inherit", letterSpacing: 0.3, marginBottom: 14,
-            boxShadow: (loading || avatarUploading) ? "none" : "0 6px 22px rgba(124,58,237,0.4)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            transition: "box-shadow 0.2s",
-          }}>
-          {loading ? (
-            <motion.div animate={{ rotate: 360 }}
-              transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-              style={{ width: 18, height: 18, borderRadius: "50%",
-                border: "2.5px solid rgba(255,255,255,0.5)", borderTopColor: "#fff" }} />
-          ) : (
-            <>⚡ {tab === "login" ? "כניסה לחשבון" : "יצירת חשבון חינם"}</>
+        {/* Submit — the single primary action */}
+        <PrimaryButton onClick={handleSubmit} disabled={loading || avatarUploading}
+          style={{ marginBottom: 16 }}>
+          {loading ? <Spinner size={18} /> : (
+            <><Zap size={16} strokeWidth={2} /> {tab === "login" ? "כניסה לחשבון" : "יצירת חשבון חינם"}</>
           )}
-        </motion.button>
+        </PrimaryButton>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 12px" }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(167,139,250,0.12)" }} />
-          <span style={{ fontSize: 11, color: "#4b5563", fontWeight: 500 }}>או</span>
-          <div style={{ flex: 1, height: 1, background: "rgba(167,139,250,0.12)" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 12px" }}>
+          <div style={{ flex: 1, height: 1, background: color.borderSubtle }} />
+          <span style={{ fontSize: 11, color: color.textMuted, fontWeight: 500 }}>או</span>
+          <div style={{ flex: 1, height: 1, background: color.borderSubtle }} />
         </div>
 
-        <motion.button whileHover={{ opacity: 1 }} whileTap={{ scale: 0.97 }}
-          onClick={onGuest}
-          style={{
-            width: "100%", padding: "12px", borderRadius: 14,
-            border: "1px solid rgba(167,139,250,0.18)",
-            background: "transparent", cursor: "pointer", fontFamily: "inherit",
-            fontSize: 13, fontWeight: 600, color: "#a78bfa", opacity: 0.8,
-            transition: "opacity 0.2s", textAlign: "center",
-          }}>
-          המשך כאורח (מצב צפייה) 👀
-        </motion.button>
+        <SecondaryButton onClick={onGuest} style={{ height: 48, fontSize: 13, color: color.textSecondary }}>
+          המשך כאורח (מצב צפייה)
+        </SecondaryButton>
 
-        <div style={{ fontSize: 10, color: "#374151", textAlign: "center",
+        <div style={{ fontSize: 10, color: color.textMuted, textAlign: "center",
           marginTop: 16, lineHeight: 1.6 }}>
           בהמשך אתה מסכים לתנאי השימוש ומדיניות הפרטיות של Jesta
         </div>

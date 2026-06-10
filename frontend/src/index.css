@@ -16,11 +16,18 @@ html, body, #root {
 
 body {
   font-family: 'Heebo', 'Segoe UI', system-ui, sans-serif;
-  background: #06030f;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  background: #0a0a0f;
+  color: #f8fafc;
   /* Prevent scroll bounce on the page shell — scroll lives inside the phone frame */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.35);
+  color: #f8fafc;
 }
 
 /* Hide scrollbars globally inside the phone frame content */
@@ -31,4 +38,19 @@ body {
 button, a {
   -webkit-tap-highlight-color: transparent;
   outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #475569;
+}
+
+/* Dark-mode native date/time picker indicators */
+input[type="date"], input[type="time"] {
+  color-scheme: dark;
+}
+
+/* Range sliders — violet accent on dark track */
+input[type="range"] {
+  accent-color: #7c3aed;
 }

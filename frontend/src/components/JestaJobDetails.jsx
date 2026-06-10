@@ -1,5 +1,5 @@
 /**
- * JestaJobDetails — Detail screen (clean light mode)
+ * JestaJobDetails — Detail screen (dark design system)
  *
  * Props:
  *   job          the selected job object passed from App.jsx
@@ -14,17 +14,10 @@ import {
   Zap, CheckCircle2, Shield, ChevronLeft, ChevronRight,
   Diamond, Trophy, Sparkles, CalendarDays, Banknote,
 } from "lucide-react";
+import { color, radius, shadow, font, styles } from "../design-system";
+import { Avatar, Badge } from "./ui";
 
-// ─── Palette (light mode) ─────────────────────────────────────────────────────
-const VIOLET     = "#7c3aed";
-const VIOLET_MID = "#7c3aed";
-const GOLD       = "#d97706";
-const GOLD_LT    = "#fef3c7";
-const SLATE      = "#0f172a";
-const MUTED      = "#64748b";
-const BORDER     = "#ede9fe";
-
-// ─── Hero SVG slides ──────────────────────────────────────────────────────────
+// ─── Hero SVG slides (illustrations — exempt from UI color tokens) ───────────
 const Slides = [
   ({ style }) => (
     <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg" style={style}>
@@ -75,27 +68,27 @@ const Slides = [
     <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg" style={style}>
       <defs>
         <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#fdf4e7" /><stop offset="100%" stopColor="#fce8d5" />
+          <stop offset="0%" stopColor="#1c1c26" /><stop offset="100%" stopColor="#242432" />
         </linearGradient>
         <linearGradient id="floor2" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#e8d5b8" /><stop offset="100%" stopColor="#d4b896" />
+          <stop offset="0%" stopColor="#2a2a38" /><stop offset="100%" stopColor="#1c1c26" />
         </linearGradient>
       </defs>
       <rect width="360" height="260" fill="url(#bg2)" />
       <rect x="0" y="185" width="360" height="75" fill="url(#floor2)" />
       {[30,155].map((x,i)=>(
         <g key={i}>
-          <line x1={x+10} y1="50" x2={x+10} y2="185" stroke="#b45309" strokeWidth="3" />
-          <line x1={x+10} y1="50" x2={x+120} y2="50" stroke="#b45309" strokeWidth="3" />
-          <line x1={x+120} y1="50" x2={x+120} y2="185" stroke="#b45309" strokeWidth="3" />
-          {["#e11d48","#7c3aed","#059669","#0369a1","#d97706","#1e293b"].map((c,j)=>(
+          <line x1={x+10} y1="50" x2={x+10} y2="185" stroke="#4c4c66" strokeWidth="3" />
+          <line x1={x+10} y1="50" x2={x+120} y2="50" stroke="#4c4c66" strokeWidth="3" />
+          <line x1={x+120} y1="50" x2={x+120} y2="185" stroke="#4c4c66" strokeWidth="3" />
+          {["#e11d48","#7c3aed","#059669","#0369a1","#d97706","#64748b"].map((c,j)=>(
             <path key={j}
               d={`M${x+20+j*16},50 Q${x+28+j*16},60 ${x+18+j*16},80 L${x+20+j*16},185 L${x+32+j*16},185 L${x+34+j*16},80 Q${x+24+j*16},60 ${x+32+j*16},50 Z`}
               fill={c} opacity="0.85" />
           ))}
         </g>
       ))}
-      <text x="180" y="35" textAnchor="middle" fill="#92400e" fontSize="18" fontWeight="900"
+      <text x="180" y="35" textAnchor="middle" fill="#94a3b8" fontSize="18" fontWeight="900"
         fontFamily="'Heebo','Segoe UI',system-ui,sans-serif" letterSpacing="4">URBAN</text>
     </svg>
   ),
@@ -104,41 +97,49 @@ const Slides = [
     <svg viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg" style={style}>
       <defs>
         <linearGradient id="sky3" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#bfdbfe" /><stop offset="100%" stopColor="#dbeafe" />
+          <stop offset="0%" stopColor="#13131a" /><stop offset="100%" stopColor="#1e1e3a" />
         </linearGradient>
         <linearGradient id="grass3" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4ade80" /><stop offset="100%" stopColor="#16a34a" />
+          <stop offset="0%" stopColor="#14532d" /><stop offset="100%" stopColor="#052e16" />
         </linearGradient>
       </defs>
       <rect width="360" height="260" fill="url(#sky3)" />
       <rect x="0" y="170" width="360" height="90" fill="url(#grass3)" />
       {[30,280].map((x,i)=>(
         <g key={i}>
-          <rect x={x+8} y="100" width="10" height="75" fill="#92400e" />
-          <ellipse cx={x+13} cy="90" rx="30" ry="40" fill="#15803d" opacity="0.9" />
-          <ellipse cx={x+13} cy="78" rx="20" ry="28" fill="#16a34a" />
+          <rect x={x+8} y="100" width="10" height="75" fill="#3f2d20" />
+          <ellipse cx={x+13} cy="90" rx="30" ry="40" fill="#14532d" opacity="0.9" />
+          <ellipse cx={x+13} cy="78" rx="20" ry="28" fill="#166534" />
         </g>
       ))}
-      <circle cx="180" cy="118" r="12" fill="#1e293b" />
-      <line x1="180" y1="130" x2="180" y2="165" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
-      <line x1="180" y1="138" x2="165" y2="152" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" />
-      <line x1="180" y1="138" x2="195" y2="152" stroke="#1e293b" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="180" cy="118" r="12" fill="#94a3b8" />
+      <line x1="180" y1="130" x2="180" y2="165" stroke="#94a3b8" strokeWidth="4" strokeLinecap="round" />
+      <line x1="180" y1="138" x2="165" y2="152" stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" />
+      <line x1="180" y1="138" x2="195" y2="152" stroke="#94a3b8" strokeWidth="3" strokeLinecap="round" />
     </svg>
   ),
 ];
 
 function Divider() {
-  return <div style={{ height: 1, background: "#f1f5f9", margin: "18px 0" }} />;
+  return <div style={{ height: 1, background: color.borderSubtle, margin: "20px 0" }} />;
 }
 
-function Chip({ icon: Icon, color = MUTED, children }) {
+function Chip({ icon: Icon, children }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569", fontWeight: 500 }}>
-      <Icon size={14} color={color} strokeWidth={2} />
+    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>
+      <Icon size={14} color={color.primaryText} strokeWidth={1.75} />
       {children}
     </div>
   );
 }
+
+const heroButton = {
+  width: 36, height: 36, borderRadius: "50%",
+  background: "rgba(19,19,26,0.85)",
+  border: `1px solid ${color.borderStrong}`,
+  cursor: "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center",
+};
 
 export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile }) {
   const initialSlide = job?.slideIndex ?? 0;
@@ -157,7 +158,7 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
   const dist     = job?.dist     ?? "700 מטר ממך";
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif", width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#fff" }}>
+    <div dir="rtl" style={{ ...styles.screen }}>
       {/* Hero */}
       <div style={{ position: "relative", height: 268, flexShrink: 0 }}>
         <AnimatePresence mode="wait">
@@ -165,61 +166,58 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
             <SlideComp style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </motion.div>
         </AnimatePresence>
-        <div style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 36, background: "#fff", borderRadius: "32px 32px 0 0", zIndex: 5 }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.38) 0%, transparent 45%, rgba(0,0,0,0.18) 100%)", zIndex: 2 }} />
+        <div style={{ position: "absolute", bottom: -1, left: 0, right: 0, height: 36, background: color.bg, borderRadius: `${radius.sheet}px ${radius.sheet}px 0 0`, zIndex: 5 }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(10,10,15,0.5) 0%, transparent 45%, rgba(10,10,15,0.3) 100%)", zIndex: 2 }} />
         <motion.button whileTap={{ scale: 0.9 }} onClick={onBack}
-          style={{ position: "absolute", top: 48, right: 14, zIndex: 10, width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.92)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.2)" }}>
-          <ArrowRight size={18} color={SLATE} strokeWidth={2.5} />
+          style={{ ...heroButton, position: "absolute", top: 48, insetInlineStart: 16, zIndex: 10 }}>
+          <ArrowRight size={18} color={color.textPrimary} strokeWidth={2} />
         </motion.button>
-        <div style={{ position: "absolute", top: 48, left: 14, zIndex: 10, display: "flex", gap: 8 }}>
+        <div style={{ position: "absolute", top: 48, insetInlineEnd: 16, zIndex: 10, display: "flex", gap: 8 }}>
           {[
             { Icon: Share2, action: () => {} },
             { Icon: Heart,  action: () => setSaved((s) => !s), fill: saved },
           ].map(({ Icon, action, fill }, i) => (
-            <motion.button key={i} whileTap={{ scale: 0.88 }} onClick={action}
-              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.92)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.2)" }}>
-              <Icon size={16} strokeWidth={2} color={fill ? "#e11d48" : SLATE} fill={fill ? "#e11d48" : "none"} />
+            <motion.button key={i} whileTap={{ scale: 0.9 }} onClick={action}
+              style={heroButton}>
+              <Icon size={16} strokeWidth={1.75} color={fill ? color.danger : color.textPrimary} fill={fill ? color.danger : "none"} />
             </motion.button>
           ))}
         </div>
-        <button onClick={prevSlide} style={{ position: "absolute", top: "50%", right: 10, zIndex: 10, transform: "translateY(-50%)", width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.75)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ChevronRight size={16} color={SLATE} />
+        <button onClick={prevSlide} style={{ ...heroButton, width: 28, height: 28, position: "absolute", top: "50%", right: 12, zIndex: 10, transform: "translateY(-50%)" }}>
+          <ChevronRight size={16} color={color.textPrimary} />
         </button>
-        <button onClick={nextSlide} style={{ position: "absolute", top: "50%", left: 10, zIndex: 10, transform: "translateY(-50%)", width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.75)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ChevronLeft size={16} color={SLATE} />
+        <button onClick={nextSlide} style={{ ...heroButton, width: 28, height: 28, position: "absolute", top: "50%", left: 12, zIndex: 10, transform: "translateY(-50%)" }}>
+          <ChevronLeft size={16} color={color.textPrimary} />
         </button>
-        <div style={{ position: "absolute", bottom: 44, left: "50%", zIndex: 10, transform: "translateX(-50%)", display: "flex", gap: 5 }}>
+        <div style={{ position: "absolute", bottom: 44, left: "50%", zIndex: 10, transform: "translateX(-50%)", display: "flex", gap: 4 }}>
           {Slides.map((_, i) => (
-            <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, background: i === slide ? "#fff" : "rgba(255,255,255,0.45)", cursor: "pointer", transition: "width 0.2s" }} />
+            <div key={i} onClick={() => setSlide(i)} style={{ width: i === slide ? 16 : 6, height: 6, borderRadius: 3, background: i === slide ? color.textPrimary : color.borderStrong, cursor: "pointer", transition: "width 0.2s" }} />
           ))}
         </div>
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
-        <div style={{ padding: "6px 20px 108px" }}>
-          <h1 style={{ fontSize: 21, fontWeight: 800, color: SLATE, lineHeight: 1.3, margin: "0 0 4px" }}>{title}</h1>
-          <div style={{ fontSize: 13.5, color: MUTED, fontWeight: 500, marginBottom: 14 }}>משרה זמנית &bull; {employer}, ראשון לציון</div>
+      <div style={{ flex: 1, overflowY: "auto", background: color.bg }}>
+        <div style={{ padding: "8px 20px 108px" }}>
+          <h1 style={{ fontSize: 21, ...font.heading, lineHeight: 1.3, margin: "0 0 4px" }}>{title}</h1>
+          <div style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400, marginBottom: 16 }}>משרה זמנית &bull; {employer}, ראשון לציון</div>
 
           {/* Rating banner */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr 1px 1fr", border: `1px solid ${BORDER}`, borderRadius: 16, overflow: "hidden", marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr 1px 1fr", background: color.surface1, border: `1px solid ${color.borderSubtle}`, borderRadius: radius.card, overflow: "hidden", marginBottom: 20 }}>
             <div style={{ padding: "12px 8px", textAlign: "center" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: SLATE }}>292</div>
-              <div style={{ fontSize: 11, color: MUTED, fontWeight: 500, marginTop: 2 }}>ביקורות נוער</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: color.textPrimary }}>292</div>
+              <div style={{ fontSize: 11, color: color.textSecondary, fontWeight: 400, marginTop: 4 }}>ביקורות נוער</div>
             </div>
-            <div style={{ background: BORDER }} />
-            <div style={{ padding: "10px 6px", textAlign: "center" }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 3, background: GOLD_LT, borderRadius: 8, padding: "3px 7px", marginBottom: 3 }}>
-                <Zap size={11} fill={GOLD} color={GOLD} />
-                <span style={{ fontSize: 10, fontWeight: 800, color: GOLD }}>ג׳סטר מובחר</span>
-              </div>
-              <div style={{ fontSize: 10.5, color: MUTED, fontWeight: 500 }}>מועדף על נוער</div>
+            <div style={{ background: color.borderSubtle }} />
+            <div style={{ padding: "12px 8px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <Badge variant="primary" icon={Zap}>ג׳סטר מובחר</Badge>
+              <div style={{ fontSize: 11, color: color.textSecondary, fontWeight: 400 }}>מועדף על נוער</div>
             </div>
-            <div style={{ background: BORDER }} />
+            <div style={{ background: color.borderSubtle }} />
             <div style={{ padding: "12px 8px", textAlign: "center" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: SLATE }}>4.95</div>
-              <div style={{ display: "flex", justifyContent: "center", gap: 1, marginTop: 3 }}>
-                {[1,2,3,4,5].map((s) => <Star key={s} size={9} fill={GOLD} color={GOLD} />)}
+              <div style={{ fontSize: 15, fontWeight: 700, color: color.textPrimary }}>4.95</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 4 }}>
+                {[1,2,3,4,5].map((s) => <Star key={s} size={9} fill={color.warning} color={color.warning} />)}
               </div>
             </div>
           </div>
@@ -227,26 +225,26 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
           <Divider />
 
           {/* Employer */}
-          <div style={{ marginBottom: 6 }}>
+          <div style={{ marginBottom: 8 }}>
             <motion.div whileTap={{ scale: 0.98 }}
               onClick={() => onOpenProfile?.("employer", { name: `אורן / ${employer}`, business: employer })}
-              style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12, cursor: "pointer" }}>
-              <div style={{ width: 54, height: 54, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, #a78bfa, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, border: "2.5px solid #ede9fe", boxShadow: "0 4px 16px rgba(124,58,237,0.2)" }}>👨‍💼</div>
+              style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12, cursor: "pointer" }}>
+              <Avatar size={52} employer />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15.5, fontWeight: 800, color: SLATE, lineHeight: 1.3 }}>באירוח של אורן / {employer}</div>
-                <div style={{ fontSize: 12.5, color: MUTED, fontWeight: 500, marginTop: 2 }}>מעסיק מצטיין &bull; 3 שנים בג׳סטה</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
-                  <CheckCircle2 size={12} color="#059669" strokeWidth={2.5} />
-                  <span style={{ fontSize: 11.5, color: "#059669", fontWeight: 700 }}>זהות מאומתת</span>
+                <div style={{ fontSize: 15, fontWeight: 600, color: color.textPrimary, lineHeight: 1.3 }}>באירוח של אורן / {employer}</div>
+                <div style={{ fontSize: 12, color: color.textSecondary, fontWeight: 400, marginTop: 2 }}>מעסיק מצטיין &bull; 3 שנים בג׳סטה</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  <CheckCircle2 size={12} color={color.success} strokeWidth={2} />
+                  <span style={{ fontSize: 11, color: color.success, fontWeight: 500 }}>זהות מאומתת</span>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: VIOLET, fontWeight: 700, background: "#ede9fe", padding: "4px 9px", borderRadius: 20, flexShrink: 0 }}>פרופיל ›</div>
+              <Badge variant="primary">פרופיל</Badge>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }}
-              style={{ display: "flex", alignItems: "flex-start", gap: 10, background: GOLD_LT, borderRadius: 14, padding: "11px 13px", border: "1px solid #fde68a" }}>
-              <Trophy size={18} color={GOLD} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} />
-              <div style={{ fontSize: 12.5, color: "#92400e", fontWeight: 500, lineHeight: 1.5 }}>
-                <span style={{ fontWeight: 800 }}>ב-5% מהמעסיקים המובילים — </span>
+              style={{ display: "flex", alignItems: "flex-start", gap: 12, background: color.surface1, borderRadius: radius.input, padding: "12px 16px", border: `1px solid ${color.borderSubtle}` }}>
+              <Trophy size={18} color={color.warning} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div style={{ fontSize: 12, color: color.textSecondary, fontWeight: 400, lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 600, color: color.textPrimary }}>ב-5% מהמעסיקים המובילים — </span>
                 המקום הזה מוגדר כסביבת עבודה בטוחה, הוגנת ומתגמלת לנוער.
               </div>
             </motion.div>
@@ -255,38 +253,38 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
           <Divider />
 
           <div style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: SLATE, marginBottom: 12 }}>פרטי המשמרת</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Chip icon={Clock}        color={VIOLET_MID}>{time} &bull; 6 שעות</Chip>
-              <Chip icon={MapPin}       color={VIOLET_MID}>{employer} &bull; {dist}</Chip>
-              <Chip icon={CalendarDays} color={VIOLET_MID}>משמרת חד-פעמית &bull; אפשרות לחזרה</Chip>
-              <Chip icon={Banknote}     color={VIOLET_MID}>{pay} לשעה &bull; מזומן בסוף המשמרת</Chip>
+            <div style={{ fontSize: 14, fontWeight: 600, color: color.textPrimary, marginBottom: 12 }}>פרטי המשמרת</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <Chip icon={Clock}>{time} &bull; 6 שעות</Chip>
+              <Chip icon={MapPin}>{employer} &bull; {dist}</Chip>
+              <Chip icon={CalendarDays}>משמרת חד-פעמית &bull; אפשרות לחזרה</Chip>
+              <Chip icon={Banknote}>{pay} לשעה &bull; מזומן בסוף המשמרת</Chip>
             </div>
           </div>
 
           <Divider />
 
           <div style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: SLATE, marginBottom: 10 }}>מה תעשה/י במשמרת?</div>
-            <div style={{ fontSize: 13.5, color: "#475569", lineHeight: 1.7, fontWeight: 400 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: color.textPrimary, marginBottom: 8 }}>מה תעשה/י במשמרת?</div>
+            <div style={{ fontSize: 13, ...font.body }}>
               לעמוד בדוכן הפופקורן ועמדת השתייה, להגיש ללקוחות, לשמור על ניקיון העמדה ולספק חוויית קנייה נהדרת.
-              אין צורך בניסיון — אנחנו מלמדים הכל בהתחלה! 🍿
+              אין צורך בניסיון — אנחנו מלמדים הכל בהתחלה!
             </div>
           </div>
 
           <Divider />
 
           <div style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: SLATE, marginBottom: 10 }}>מה כלול?</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: color.textPrimary, marginBottom: 12 }}>מה כלול?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[
-                { icon: CheckCircle2, color: "#059669", text: "אוכל כלול במהלך המשמרת 🍕" },
-                { icon: CheckCircle2, color: "#059669", text: "תשלום מזומן בסוף המשמרת 💸" },
-                { icon: Shield,       color: VIOLET_MID, text: "סביבת עבודה בטוחה ומפוקחת" },
-                { icon: Sparkles,     color: GOLD,       text: "אפשרות להפוך לג׳סטר קבוע" },
-              ].map(({ icon: Icon, color, text }, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, color: "#334155", fontWeight: 500 }}>
-                  <Icon size={15} color={color} strokeWidth={2} style={{ flexShrink: 0 }} />
+                { icon: CheckCircle2, iconColor: color.success,     text: "אוכל כלול במהלך המשמרת" },
+                { icon: CheckCircle2, iconColor: color.success,     text: "תשלום מזומן בסוף המשמרת" },
+                { icon: Shield,       iconColor: color.primaryText, text: "סביבת עבודה בטוחה ומפוקחת" },
+                { icon: Sparkles,     iconColor: color.primaryText, text: "אפשרות להפוך לג׳סטר קבוע" },
+              ].map(({ icon: Icon, iconColor, text }, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>
+                  <Icon size={15} color={iconColor} strokeWidth={1.75} style={{ flexShrink: 0 }} />
                   {text}
                 </div>
               ))}
@@ -296,10 +294,10 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
           <Divider />
 
           <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, duration: 0.4 }}
-            style={{ display: "flex", alignItems: "center", gap: 12, background: "#f0fdf4", borderRadius: 14, padding: "13px 14px", border: "1px solid #bbf7d0" }}>
-            <Diamond size={20} color="#059669" strokeWidth={2} style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: 13, color: "#065f46", fontWeight: 500, lineHeight: 1.5 }}>
-              <span style={{ fontWeight: 800 }}>מציאה אמיתית! </span>
+            style={{ display: "flex", alignItems: "center", gap: 12, background: color.successSoft, borderRadius: radius.input, padding: "12px 16px", border: `1px solid ${color.borderSubtle}` }}>
+            <Diamond size={20} color={color.success} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400, lineHeight: 1.6 }}>
+              <span style={{ fontWeight: 600, color: color.success }}>מציאה אמיתית! </span>
               העבודה הזו בדרך כלל נתפסת תוך פחות מ-10 דקות.
             </div>
           </motion.div>
@@ -313,55 +311,31 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
         transition={{ type: "spring", stiffness: 320, damping: 30, delay: 0.12 }}
         style={{
           position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 50,
-          background: "#fff", borderTop: "1px solid #f1f5f9",
-          boxShadow: "0 -4px 24px rgba(124,58,237,0.08)",
-          padding: "12px 18px 20px",
+          background: color.surface1, borderTop: `1px solid ${color.borderSubtle}`,
+          padding: "12px 20px 20px",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}
       >
         <div style={{ flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-            <span style={{ fontSize: 19, fontWeight: 900, color: SLATE }}>{pay}</span>
-            <span style={{ fontSize: 12.5, color: MUTED, fontWeight: 500 }}> / לשעה</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+            <span style={{ fontSize: 19, fontWeight: 700, color: color.textPrimary, letterSpacing: "-0.02em" }}>{pay}</span>
+            <span style={{ fontSize: 12, color: color.textSecondary, fontWeight: 400 }}> / לשעה</span>
           </div>
-          <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 500, marginTop: 1 }}>₪{payRaw * 6} סה״כ למשמרת &bull; היום</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 4 }}>
-            <CheckCircle2 size={11} color="#059669" strokeWidth={2.5} />
-            <span style={{ fontSize: 10.5, color: "#059669", fontWeight: 600 }}>ביטול ללא קנס עד שעתיים לפני</span>
+          <div style={{ fontSize: 11, color: color.textSecondary, fontWeight: 400, marginTop: 2 }}>₪{payRaw * 6} סה״כ למשמרת &bull; היום</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+            <CheckCircle2 size={11} color={color.success} strokeWidth={2} />
+            <span style={{ fontSize: 11, color: color.success, fontWeight: 500 }}>ביטול ללא קנס עד שעתיים לפני</span>
           </div>
         </div>
 
-        {/* CTA with shimmer */}
+        {/* Hero CTA — the single primary action */}
         <motion.button
-          whileTap={{ scale: 0.95 }}
-          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          whileHover={{ backgroundColor: color.primaryHover }}
           onClick={() => onApply?.(job)}
-          style={{
-            flex: 1, padding: "14px 10px", borderRadius: 50, border: "none",
-            background: "linear-gradient(135deg, #9333ea 0%, #ec4899 100%)",
-            color: "#fff", fontSize: 15.5, fontWeight: 900,
-            cursor: "pointer", fontFamily: "inherit", letterSpacing: 0.2,
-            boxShadow: "0 6px 22px rgba(147,51,234,0.38)",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            position: "relative", overflow: "hidden",
-          }}
+          style={{ ...styles.buttonPrimary, flex: 1, width: "auto" }}
         >
-          {/* Repeating shimmer sweep */}
-          <motion.div
-            aria-hidden="true"
-            style={{
-              position: "absolute", top: 0, left: 0,
-              width: "45%", height: "100%",
-              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent)",
-              transform: "skewX(-18deg)",
-              pointerEvents: "none",
-            }}
-            animate={{ left: ["-50%", "160%"] }}
-            transition={{ duration: 1.3, repeat: Infinity, repeatDelay: 2.5, ease: "easeInOut" }}
-          />
-          <span style={{ display: "flex", alignItems: "center", gap: 6, position: "relative", zIndex: 1 }}>
-            <Zap size={15} fill="#facc15" color="#facc15" /> אני בפנים!
-          </span>
+          <Zap size={16} color="#fff" strokeWidth={2} /> אני בפנים!
         </motion.button>
       </motion.div>
     </div>

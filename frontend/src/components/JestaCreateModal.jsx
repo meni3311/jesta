@@ -3,25 +3,20 @@
  */
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronRight, ChevronLeft, Check, Zap, Rocket, Loader2 } from "lucide-react";
+import {
+  X, ChevronRight, ChevronLeft, Check, Rocket, Loader2,
+  Utensils, Package, PartyPopper, Shirt, Sparkles, Tag, AlertCircle, BarChart3,
+} from "lucide-react";
 import { createJob } from "../services/api";
-
-const VIOLET   = "#7c3aed";
-const VIOLET_D = "#5b21b6";
-const VIOLET_L = "#ede9fe";
-const GREEN    = "#059669";
-const SLATE    = "#0f172a";
-const MUTED    = "#64748b";
-const BORDER   = "#e2e8f0";
-const SURFACE  = "#f8f7ff";
+import { color, radius, shadow, font, styles } from "../design-system";
 
 const CATEGORIES = [
-  { id: "food",      label: "מזון",       emoji: "🍔" },
-  { id: "logistics", label: "לוגיסטיקה",  emoji: "📦" },
-  { id: "events",    label: "אירועים",    emoji: "🎉" },
-  { id: "fashion",   label: "אופנה",      emoji: "👕" },
-  { id: "cleaning",  label: "ניקיון",     emoji: "🧹" },
-  { id: "sales",     label: "מכירות",     emoji: "🏷️" },
+  { id: "food",      label: "מזון",       icon: Utensils },
+  { id: "logistics", label: "לוגיסטיקה",  icon: Package },
+  { id: "events",    label: "אירועים",    icon: PartyPopper },
+  { id: "fashion",   label: "אופנה",      icon: Shirt },
+  { id: "cleaning",  label: "ניקיון",     icon: Sparkles },
+  { id: "sales",     label: "מכירות",     icon: Tag },
 ];
 
 // TODO: replace with real geocoding of the address field (e.g. Google
@@ -47,21 +42,22 @@ function StepBar({ step }) {
           <div key={s.n} style={{ display: "flex", alignItems: "center" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
               <motion.div
-                animate={{ background: done ? GREEN : active ? VIOLET : "#e2e8f0", scale: active ? 1.1 : 1 }}
+                animate={{ background: done ? color.success : active ? color.primary : color.surface3, scale: active ? 1.1 : 1 }}
                 transition={{ type: "spring", stiffness: 300, damping: 24 }}
-                style={{ width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: active ? `0 0 0 4px ${VIOLET_L}` : "none" }}>
+                style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: active ? `0 0 0 4px ${color.primarySoft}` : "none" }}>
                 {done
-                  ? <Check size={14} color="#fff" strokeWidth={3} />
-                  : <span style={{ fontSize: 13, fontWeight: 800, color: active ? "#fff" : MUTED }}>{s.n}</span>
+                  ? <Check size={14} color="#fff" strokeWidth={2.5} />
+                  : <span style={{ fontSize: 13, fontWeight: 700, color: active ? "#fff" : color.textMuted }}>{s.n}</span>
                 }
               </motion.div>
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? VIOLET : MUTED, whiteSpace: "nowrap" }}>{s.label}</span>
+              <span style={{ fontSize: 10, fontWeight: active ? 600 : 400, color: active ? color.primaryText : color.textMuted, whiteSpace: "nowrap" }}>{s.label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div style={{ position: "relative", width: 44, height: 2, margin: "0 4px", marginBottom: 18 }}>
-                <div style={{ position: "absolute", inset: 0, background: "#e2e8f0", borderRadius: 1 }} />
+              <div style={{ position: "relative", width: 44, height: 2, margin: "0 4px", marginBottom: 16 }}>
+                <div style={{ position: "absolute", inset: 0, background: color.surface3, borderRadius: 1 }} />
                 <motion.div animate={{ width: step > s.n ? "100%" : "0%" }} transition={{ duration: 0.35, ease: "easeInOut" }}
-                  style={{ position: "absolute", left: 0, top: 0, bottom: 0, background: GREEN, borderRadius: 1 }} />
+                  style={{ position: "absolute", left: 0, top: 0, bottom: 0, background: color.success, borderRadius: 1 }} />
               </div>
             )}
           </div>
@@ -71,14 +67,10 @@ function StepBar({ step }) {
   );
 }
 
-const inputStyle = {
-  width: "100%", padding: "11px 13px", borderRadius: 12,
-  border: `1.5px solid ${BORDER}`, background: SURFACE,
-  fontSize: 14, fontWeight: 500, color: SLATE,
-  fontFamily: "inherit", outline: "none", direction: "rtl",
-  transition: "border-color 0.15s", boxSizing: "border-box",
-};
-const labelStyle = { fontSize: 12.5, fontWeight: 700, color: MUTED, marginBottom: 6, display: "block" };
+const inputStyle = { ...styles.input, direction: "rtl" };
+const labelStyle = { fontSize: 12, fontWeight: 500, color: color.textSecondary, marginBottom: 8, display: "block" };
+const focusOn  = (e) => (e.target.style.borderColor = color.primary);
+const focusOff = (e) => (e.target.style.borderColor = color.borderSubtle);
 
 function Field({ label, children }) {
   return <div style={{ marginBottom: 16 }}><label style={labelStyle}>{label}</label>{children}</div>;
@@ -90,23 +82,29 @@ function Step1({ data, setData }) {
       <Field label="כותרת הג׳סטה *">
         <input style={inputStyle} placeholder='לדוגמה: "עוזר בדוכן פופקורן"' value={data.title}
           onChange={(e) => setData((d) => ({ ...d, title: e.target.value }))}
-          onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+          onFocus={focusOn} onBlur={focusOff} />
       </Field>
       <Field label="מה צריך לעשות? (תיאור קצר)">
-        <textarea style={{ ...inputStyle, minHeight: 80, resize: "none", lineHeight: 1.55 }}
+        <textarea style={{ ...inputStyle, minHeight: 80, resize: "none", lineHeight: 1.6 }}
           placeholder="תאר את המשמרת בקצרה..." value={data.description}
           onChange={(e) => setData((d) => ({ ...d, description: e.target.value }))}
-          onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+          onFocus={focusOn} onBlur={focusOff} />
       </Field>
       <Field label="קטגוריה *">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
           {CATEGORIES.map((cat) => {
             const active = data.category === cat.id;
+            const Icon = cat.icon;
             return (
-              <motion.button key={cat.id} whileTap={{ scale: 0.94 }} onClick={() => setData((d) => ({ ...d, category: cat.id }))}
-                style={{ padding: "9px 6px", borderRadius: 12, border: `1.5px solid ${active ? VIOLET : BORDER}`, background: active ? VIOLET_L : SURFACE, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, transition: "border-color 0.15s, background 0.15s" }}>
-                <span style={{ fontSize: 18 }}>{cat.emoji}</span>
-                <span style={{ fontSize: 11.5, fontWeight: active ? 800 : 600, color: active ? VIOLET : MUTED }}>{cat.label}</span>
+              <motion.button key={cat.id} whileTap={{ scale: 0.96 }} onClick={() => setData((d) => ({ ...d, category: cat.id }))}
+                style={{ padding: "12px 8px", borderRadius: radius.input,
+                  border: `1px solid ${active ? color.primary : color.borderSubtle}`,
+                  background: active ? color.primarySoft : color.surface2,
+                  cursor: "pointer", fontFamily: font.family,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                  transition: "border-color 0.15s, background 0.15s" }}>
+                <Icon size={18} color={active ? color.primaryText : color.textSecondary} strokeWidth={1.75} />
+                <span style={{ fontSize: 12, fontWeight: active ? 600 : 500, color: active ? color.primaryText : color.textSecondary }}>{cat.label}</span>
               </motion.button>
             );
           })}
@@ -122,31 +120,31 @@ function Step2({ data, setData }) {
       <Field label="תאריך המשמרת *">
         <input type="date" style={inputStyle} value={data.date}
           onChange={(e) => setData((d) => ({ ...d, date: e.target.value }))}
-          onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+          onFocus={focusOn} onBlur={focusOff} />
       </Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
         <div>
           <label style={labelStyle}>שעת התחלה *</label>
           <input type="time" style={inputStyle} value={data.startTime}
             onChange={(e) => setData((d) => ({ ...d, startTime: e.target.value }))}
-            onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+            onFocus={focusOn} onBlur={focusOff} />
         </div>
         <div>
           <label style={labelStyle}>שעת סיום *</label>
           <input type="time" style={inputStyle} value={data.endTime}
             onChange={(e) => setData((d) => ({ ...d, endTime: e.target.value }))}
-            onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+            onFocus={focusOn} onBlur={focusOff} />
         </div>
       </div>
       <Field label="כתובת העסק / מיקום *">
         <input style={inputStyle} placeholder='לדוגמה: "קניון עזריאלי, תל אביב"' value={data.address}
           onChange={(e) => setData((d) => ({ ...d, address: e.target.value }))}
-          onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+          onFocus={focusOn} onBlur={focusOff} />
       </Field>
       <Field label="שם העסק / המעסיק">
         <input style={inputStyle} placeholder='לדוגמה: "סינמה סיטי", "משפחת לוי"' value={data.employer}
           onChange={(e) => setData((d) => ({ ...d, employer: e.target.value }))}
-          onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+          onFocus={focusOn} onBlur={focusOff} />
       </Field>
     </motion.div>
   );
@@ -168,50 +166,59 @@ function Step3({ data, setData }) {
         <div style={{ padding: "4px 0 8px" }}>
           <input type="range" min={25} max={150} step={5} value={data.hourlyRate}
             onChange={(e) => setData((d) => ({ ...d, hourlyRate: Number(e.target.value) }))}
-            style={{ width: "100%", accentColor: VIOLET, height: 4 }} />
+            style={{ width: "100%", accentColor: color.primary, height: 4 }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: 10.5, color: MUTED }}>₪25</span>
-            <span style={{ fontSize: 10.5, color: MUTED }}>₪150</span>
+            <span style={{ fontSize: 11, color: color.textMuted }}>₪25</span>
+            <span style={{ fontSize: 11, color: color.textMuted }}>₪150</span>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          {[40, 50, 55, 65, 80, 100].map((v) => (
-            <motion.button key={v} whileTap={{ scale: 0.9 }} onClick={() => setData((d) => ({ ...d, hourlyRate: v }))}
-              style={{ padding: "5px 12px", borderRadius: 20, fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, cursor: "pointer", border: `1.5px solid ${data.hourlyRate === v ? VIOLET : BORDER}`, background: data.hourlyRate === v ? VIOLET_L : SURFACE, color: data.hourlyRate === v ? VIOLET : MUTED, transition: "all 0.15s" }}>
-              ₪{v}
-            </motion.button>
-          ))}
+          {[40, 50, 55, 65, 80, 100].map((v) => {
+            const active = data.hourlyRate === v;
+            return (
+              <motion.button key={v} whileTap={{ scale: 0.92 }} onClick={() => setData((d) => ({ ...d, hourlyRate: v }))}
+                style={{ padding: "8px 12px", borderRadius: radius.chip, fontFamily: font.family,
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${active ? color.primary : color.borderSubtle}`,
+                  background: active ? color.primarySoft : color.surface2,
+                  color: active ? color.primaryText : color.textSecondary,
+                  transition: "all 0.15s" }}>
+                ₪{v}
+              </motion.button>
+            );
+          })}
         </div>
       </Field>
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        style={{ borderRadius: 18, background: "linear-gradient(135deg,#4c1d95 0%,#2e1065 100%)", padding: "18px 20px", position: "relative", overflow: "hidden", boxShadow: "0 8px 28px rgba(91,33,182,0.4)" }}>
-        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle,rgba(167,139,250,0.3) 0%,transparent 70%)", pointerEvents: "none" }} />
-        <div style={{ position: "relative" }}>
-          <div style={{ fontSize: 12, color: "rgba(196,181,253,0.75)", fontWeight: 600, marginBottom: 10 }}>📊 סיכום המשמרת</div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, color: "rgba(196,181,253,0.8)", fontWeight: 500 }}>שכר לשעה</span>
-            <span style={{ fontSize: 13, color: "#e9d5ff", fontWeight: 700 }}>₪{data.hourlyRate}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: "rgba(196,181,253,0.8)", fontWeight: 500 }}>משך המשמרת</span>
-            <span style={{ fontSize: 13, color: "#e9d5ff", fontWeight: 700 }}>{hours} שעות</span>
-          </div>
-          <div style={{ height: 1, background: "rgba(255,255,255,0.1)", marginBottom: 14 }} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <span style={{ fontSize: 13, color: "rgba(196,181,253,0.8)", fontWeight: 600 }}>סה״כ מזומן בסוף היום</span>
-            <motion.span key={total} initial={{ scale: 1.25 }} animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 380, damping: 22 }}
-              style={{ fontSize: 26, fontWeight: 900, color: "#a3e635", lineHeight: 1 }}>₪{total}</motion.span>
-          </div>
-          <div style={{ marginTop: 10, fontSize: 11.5, color: "rgba(196,181,253,0.6)", fontWeight: 500 }}>💸 ג׳סטרים מקבלים תשלום ישיר בסוף כל משמרת</div>
+        style={{ borderRadius: radius.card, background: color.surface2,
+          border: `1px solid ${color.borderSubtle}`, padding: "16px 20px",
+          boxShadow: shadow.card }}>
+        <div style={{ ...font.overline, display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: color.textSecondary }}>
+          <BarChart3 size={13} color={color.primaryText} strokeWidth={2} /> סיכום המשמרת
         </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>שכר לשעה</span>
+          <span style={{ fontSize: 13, color: color.textPrimary, fontWeight: 600 }}>₪{data.hourlyRate}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+          <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>משך המשמרת</span>
+          <span style={{ fontSize: 13, color: color.textPrimary, fontWeight: 600 }}>{hours} שעות</span>
+        </div>
+        <div style={{ height: 1, background: color.borderSubtle, marginBottom: 12 }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 500 }}>סה״כ מזומן בסוף היום</span>
+          <motion.span key={total} initial={{ scale: 1.2 }} animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 380, damping: 22 }}
+            style={{ fontSize: 26, fontWeight: 700, color: color.success, lineHeight: 1, letterSpacing: "-0.02em" }}>₪{total}</motion.span>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 11, color: color.textMuted, fontWeight: 400 }}>ג׳סטרים מקבלים תשלום ישיר בסוף כל משמרת</div>
       </motion.div>
 
       <Field label="הטבות נוספות (אופציונלי)">
         <input style={{ ...inputStyle, marginTop: 8 }} placeholder='לדוגמה: "אוכל כלול", "נסיעות"' value={data.perks}
           onChange={(e) => setData((d) => ({ ...d, perks: e.target.value }))}
-          onFocus={(e) => (e.target.style.borderColor = VIOLET)} onBlur={(e) => (e.target.style.borderColor = BORDER)} />
+          onFocus={focusOn} onBlur={focusOff} />
       </Field>
     </motion.div>
   );
@@ -282,27 +289,31 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
       {isOpen && (
         <motion.div key="backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }}
           onClick={onClose}
-          style={{ position: "absolute", inset: 0, zIndex: 6000, background: "rgba(6,3,15,0.72)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          style={{ position: "absolute", inset: 0, zIndex: 6000, background: "rgba(10,10,15,0.78)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <motion.div key="modal" dir="rtl"
             initial={{ scale: 0.9, opacity: 0, y: 24 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0, y: 16 }}
             transition={{ type: "spring", stiffness: 340, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "91%", maxHeight: "86%", zIndex: 6001, background: "#fff", borderRadius: 26, boxShadow: "0 24px 72px rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif" }}>
-            <div style={{ padding: "20px 18px 0", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            style={{ width: "91%", maxHeight: "86%", zIndex: 6001,
+              background: color.surface1, borderRadius: radius.sheet,
+              border: `1px solid ${color.borderSubtle}`,
+              boxShadow: shadow.card,
+              display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: font.family }}>
+            <div style={{ padding: "20px 20px 0", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 17, fontWeight: 900, color: SLATE, lineHeight: 1.2 }}>פרסם ג׳סטה חדשה 💼</div>
-                  <div style={{ fontSize: 12, color: MUTED, fontWeight: 500, marginTop: 2 }}>שלב {step} מתוך 3</div>
+                  <div style={{ fontSize: 17, ...font.heading, lineHeight: 1.2 }}>פרסם ג׳סטה חדשה</div>
+                  <div style={{ fontSize: 12, color: color.textSecondary, fontWeight: 400, marginTop: 2 }}>שלב {step} מתוך 3</div>
                 </div>
-                <motion.button whileTap={{ scale: 0.86 }} onClick={onClose}
-                  style={{ width: 32, height: 32, borderRadius: "50%", background: "#f1f5f9", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <X size={16} color={MUTED} strokeWidth={2.5} />
+                <motion.button whileTap={{ scale: 0.88 }} onClick={onClose}
+                  style={{ ...styles.iconButton, width: 32, height: 32 }}>
+                  <X size={16} color={color.textSecondary} strokeWidth={2} />
                 </motion.button>
               </div>
               <StepBar step={step} />
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "4px 18px 8px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 8px" }}>
               <AnimatePresence mode="wait">
                 {step === 1 && <Step1 key="s1" data={data} setData={setData} />}
                 {step === 2 && <Step2 key="s2" data={data} setData={setData} />}
@@ -310,38 +321,42 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
               </AnimatePresence>
             </div>
 
-            <div style={{ padding: "12px 18px 18px", borderTop: `1px solid ${BORDER}`, flexShrink: 0, background: "#fff" }}>
+            <div style={{ padding: "12px 20px 20px", borderTop: `1px solid ${color.borderSubtle}`, flexShrink: 0, background: color.surface1 }}>
               {/* Error message */}
               {error && (
-                <div style={{ marginBottom: 10, padding: "9px 14px", borderRadius: 12,
-                  background: "#fef2f2", border: "1px solid #fecaca",
-                  fontSize: 12.5, fontWeight: 600, color: "#dc2626", textAlign: "center" }}>
-                  ⚠️ {error}
+                <div style={{ marginBottom: 12, padding: "8px 16px", borderRadius: radius.input,
+                  background: color.surface2, border: `1px solid ${color.borderSubtle}`,
+                  fontSize: 12, fontWeight: 500, color: color.danger, textAlign: "center",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <AlertCircle size={14} strokeWidth={2} /> {error}
                 </div>
               )}
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 12 }}>
                 {step > 1 ? (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={handleBack} disabled={publishing}
-                    style={{ padding: "12px 16px", borderRadius: 50, border: `1.5px solid ${BORDER}`, background: SURFACE, color: MUTED, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, opacity: publishing ? 0.5 : 1 }}>
-                    <ChevronRight size={15} strokeWidth={2.5} /> חזרה
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={handleBack} disabled={publishing}
+                    style={{ ...styles.buttonSecondary, width: "auto", padding: "0 16px", fontSize: 14,
+                      opacity: publishing ? 0.5 : 1 }}>
+                    <ChevronRight size={15} strokeWidth={2} /> חזרה
                   </motion.button>
                 ) : <div style={{ flex: "0 0 auto" }} />}
 
                 <motion.button
-                  whileTap={{ scale: (canProceed && !publishing) ? 0.96 : 1 }}
-                  whileHover={(canProceed && !publishing) ? { scale: 1.015 } : {}}
+                  whileTap={(canProceed && !publishing) ? { scale: 0.98 } : undefined}
+                  whileHover={(canProceed && !publishing) ? { backgroundColor: color.primaryHover } : undefined}
                   onClick={step < 3 ? handleNext : handlePublish}
                   disabled={!canProceed || publishing}
-                  style={{ flex: 1, padding: "13px 10px", borderRadius: 50, border: "none", background: (canProceed && !publishing) ? (step < 3 ? "linear-gradient(135deg,#9333ea 0%,#ec4899 100%)" : "linear-gradient(135deg,#7c3aed 0%,#db2777 100%)") : "#e2e8f0", color: (canProceed && !publishing) ? "#fff" : MUTED, fontSize: 15, fontWeight: 900, cursor: (canProceed && !publishing) ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: (canProceed && !publishing) ? "0 6px 20px rgba(147,51,234,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, transition: "background 0.2s, box-shadow 0.2s", position: "relative", overflow: "hidden" }}>
-                  {step === 3 && canProceed && !publishing && (
-                    <motion.div animate={{ left: ["-100%", "200%"] }} transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.5, ease: "easeInOut" }}
-                      style={{ position: "absolute", top: 0, width: "45%", height: "100%", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)", pointerEvents: "none" }} />
-                  )}
+                  style={{
+                    ...styles.buttonPrimary, flex: 1, width: "auto",
+                    ...(!(canProceed && !publishing) && {
+                      background: color.surface3, color: color.textMuted,
+                      boxShadow: "none", cursor: "not-allowed",
+                    }),
+                  }}>
                   {publishing
                     ? <><Loader2 size={15} strokeWidth={2} style={{ animation: "spin 0.7s linear infinite" }} /> מפרסם...</>
                     : step < 3
-                      ? <> המשך <ChevronLeft size={15} strokeWidth={2.5} /> </>
-                      : <> <Rocket size={15} strokeWidth={2} /> פרסם ג׳סטה! 🚀 </>
+                      ? <> המשך <ChevronLeft size={15} strokeWidth={2} /> </>
+                      : <> <Rocket size={15} strokeWidth={2} /> פרסם ג׳סטה </>
                   }
                 </motion.button>
               </div>

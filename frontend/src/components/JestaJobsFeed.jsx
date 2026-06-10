@@ -22,16 +22,11 @@ import {
   motion, AnimatePresence, useMotionValue, animate,
 } from "framer-motion";
 import {
-  Clock, MapPin, CheckCircle2, Zap, Search,
-  SlidersHorizontal, Star, X as IconX, ChevronRight,
+  Clock, MapPin, CheckCircle2, Zap, Search, SearchX,
+  SlidersHorizontal, Star, X as IconX, ChevronLeft, Briefcase, Banknote,
 } from "lucide-react";
-
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const VIOLET    = "#7c3aed";
-const VIOLET_LT = "#ede9fe";
-const MUTED     = "#94a3b8";
-const SLATE     = "#0f172a";
-const GOLD      = "#fbbf24";
+import { color, radius, shadow, font, styles } from "../design-system";
+import { Avatar, Badge, EmptyState as DSEmptyState, SheetHandle } from "./ui";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SNAP       = { OPEN: 150, PEEK: 490, MIN: 690 };
@@ -59,34 +54,33 @@ function haversine(lat1, lng1, lat2, lng2) {
 
 // ─── Leaflet price icon ───────────────────────────────────────────────────────
 function createPriceIcon(pay, isActive, isNew = false) {
-  const bg     = isActive
-    ? "linear-gradient(135deg,#c084fc 0%,#6d28d9 100%)"
-    : "linear-gradient(135deg,#8b5cf6 0%,#4c1d95 100%)";
-  const tail   = isActive ? "#6d28d9" : "#4c1d95";
-  const shadow = isActive
-    ? "0 4px 18px rgba(124,58,237,0.75)"
-    : "0 3px 12px rgba(109,40,217,0.45)";
+  const bg     = isActive ? color.primaryHover : color.surface2;
+  const text   = isActive ? "#ffffff" : color.textPrimary;
+  const border = isActive ? color.primary : color.borderStrong;
+  const boxShadow = isActive
+    ? "0 0 20px rgba(124,58,237,0.45), 0 4px 12px rgba(0,0,0,0.5)"
+    : "0 2px 8px rgba(0,0,0,0.5)";
   const newAnim = isNew
-    ? "@keyframes jp{0%{transform:scale(0) translateY(-12px);opacity:0}60%{transform:scale(1.2) translateY(2px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}"
+    ? "@keyframes jp{0%{transform:scale(0) translateY(-12px);opacity:0}60%{transform:scale(1.15) translateY(2px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}"
     : "";
   const newStyle = isNew ? "animation:jp .55s cubic-bezier(.34,1.56,.64,1) both;" : "";
   return window.L.divIcon({
     className: "",
     iconSize: [56, 46], iconAnchor: [28, 46],
     html: `<style>${newAnim}</style>
-      <div style="background:${bg};color:#fff;
-        font-family:'Heebo','Segoe UI',sans-serif;font-size:13px;font-weight:900;
-        padding:6px 12px;border-radius:14px;
-        border:2.5px solid rgba(255,255,255,0.88);
-        white-space:nowrap;box-shadow:${shadow};
-        display:inline-block;letter-spacing:-0.3px;
+      <div style="background:${bg};color:${text};
+        font-family:${font.family};font-size:13px;font-weight:700;
+        padding:6px 12px;border-radius:${radius.button}px;
+        border:1px solid ${border};
+        white-space:nowrap;box-shadow:${boxShadow};
+        display:inline-block;letter-spacing:-0.02em;
         transform:${isActive ? "scale(1.08)" : "scale(1)"};
         transition:transform .2s;position:relative;${newStyle}">
         ${pay}
-        <div style="position:absolute;bottom:-9px;left:50%;
+        <div style="position:absolute;bottom:-8px;left:50%;
           transform:translateX(-50%);width:0;height:0;
           border-left:6px solid transparent;border-right:6px solid transparent;
-          border-top:9px solid ${tail};"></div>
+          border-top:8px solid ${isActive ? color.primaryHover : color.surface2};"></div>
       </div>`,
   });
 }
@@ -153,40 +147,47 @@ function LiveMap({ jobs, activePin, onPinClick, visibleJobIds }) {
   }, [visibleJobIds]);
 
   return (
-    <div ref={containerRef} style={{ position: "absolute", inset: 0, zIndex: 0, background: "#0f172a" }} />
+    <div ref={containerRef} style={{ position: "absolute", inset: 0, zIndex: 0, background: color.bg }} />
   );
 }
 
-// ─── Filter panels (stay dark — float over map tiles) ─────────────────────────
+// ─── Filter panels (float over map tiles) ─────────────────────────────────────
 const PANEL_STYLE = {
-  background: "rgba(10,5,30,0.94)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 18,
-  padding: "16px 18px",
-  boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+  background: "rgba(19,19,26,0.96)",   // surface-1 @ 96%
+  border: `1px solid ${color.borderStrong}`,
+  borderRadius: radius.card,
+  padding: "16px",
+  boxShadow: shadow.card,
 };
 
 function SliderRow({ value, min, max, step, onChange, formatLabel }) {
   return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: color.textMuted, fontWeight: 500 }}>
           {min === 0 ? "ללא הגבלה" : formatLabel(min)}
         </span>
-        <motion.span key={value} initial={{ scale: 1.2 }} animate={{ scale: 1 }}
+        <motion.span key={value} initial={{ scale: 1.15 }} animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 20 }}
-          style={{ fontSize: 15, fontWeight: 900, color: "#c4b5fd" }}>
+          style={{ fontSize: 15, fontWeight: 700, color: color.primaryText }}>
           {formatLabel(value)}
         </motion.span>
-        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+        <span style={{ fontSize: 12, color: color.textMuted, fontWeight: 500 }}>
           {formatLabel(max)}
         </span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: "#7c3aed", height: 4 }} />
+        style={{ width: "100%", accentColor: color.primary, height: 4 }} />
+    </div>
+  );
+}
+
+function PanelLabel({ icon: Icon, children }) {
+  return (
+    <div style={{ ...font.overline, display: "flex", alignItems: "center", gap: 8, marginBottom: 8, color: color.textSecondary }}>
+      <Icon size={13} color={color.primaryText} strokeWidth={2} />
+      {children}
     </div>
   );
 }
@@ -194,9 +195,9 @@ function SliderRow({ value, min, max, step, onChange, formatLabel }) {
 function RadiusPanel({ value, onChange }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: MUTED, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 6 }}>📍 רדיוס חיפוש מהמיקום שלי</div>
+      <PanelLabel icon={MapPin}>רדיוס חיפוש מהמיקום שלי</PanelLabel>
       <SliderRow value={value} min={1} max={50} step={1} onChange={onChange} formatLabel={(v) => `${v} ק״מ`} />
-      <div style={{ fontSize: 11, color: "rgba(167,139,250,0.55)", marginTop: 8, fontWeight: 500 }}>מציג ג׳סטות עד {value} ק״מ מהמיקום שלך</div>
+      <div style={{ fontSize: 11, color: color.textMuted, marginTop: 8, fontWeight: 500 }}>מציג ג׳סטות עד {value} ק״מ מהמיקום שלך</div>
     </div>
   );
 }
@@ -204,9 +205,9 @@ function RadiusPanel({ value, onChange }) {
 function WagePanel({ value, onChange }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: MUTED, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 6 }}>💰 שכר מינימלי לשעה</div>
+      <PanelLabel icon={Banknote}>שכר מינימלי לשעה</PanelLabel>
       <SliderRow value={value} min={30} max={120} step={5} onChange={onChange} formatLabel={(v) => v >= 120 ? "₪120+" : `₪${v}`} />
-      <div style={{ fontSize: 11, color: "rgba(167,139,250,0.55)", marginTop: 8, fontWeight: 500 }}>
+      <div style={{ fontSize: 11, color: color.textMuted, marginTop: 8, fontWeight: 500 }}>
         {value >= 120 ? "מציג את כל הג׳סטות" : `מציג ג׳סטות עם שכר של ₪${value}+ לשעה`}
       </div>
     </div>
@@ -216,70 +217,44 @@ function WagePanel({ value, onChange }) {
 function RatingPanel({ value, onChange }) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: MUTED, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 12 }}>⭐ דירוג מעסיק מינימלי</div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+      <PanelLabel icon={Star}>דירוג מעסיק מינימלי</PanelLabel>
+      <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 12 }}>
         {[1, 2, 3, 4, 5].map((star) => (
-          <motion.button key={star} whileTap={{ scale: 0.85 }} whileHover={{ scale: 1.15 }}
+          <motion.button key={star} whileTap={{ scale: 0.85 }}
             onClick={() => onChange(value === star ? 0 : star)}
-            style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 28, padding: 0, lineHeight: 1, filter: star <= value ? "none" : "grayscale(1) opacity(0.3)", transition: "filter 0.15s" }}>
-            ⭐
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, lineHeight: 1, display: "flex" }}>
+            <Star size={26} strokeWidth={1.5}
+              fill={star <= value ? color.warning : "transparent"}
+              color={star <= value ? color.warning : color.textMuted} />
           </motion.button>
         ))}
       </div>
-      <div style={{ textAlign: "center", fontSize: 12, color: "rgba(167,139,250,0.7)", marginTop: 10, fontWeight: 600 }}>
+      <div style={{ textAlign: "center", fontSize: 12, color: color.textSecondary, marginTop: 12, fontWeight: 500 }}>
         {value === 0 ? "כל הדירוגים" : `${value} כוכבים ומעלה`}
       </div>
     </div>
   );
 }
 
-function FilterPill({ label, isModified, isOpen, onClick }) {
+function FilterPill({ icon: Icon, label, isModified, isOpen, onClick }) {
   return (
-    <motion.button whileTap={{ scale: 0.93 }} onClick={onClick}
+    <motion.button whileTap={{ scale: 0.95 }} onClick={onClick}
       style={{
-        flexShrink: 0, padding: "7px 13px", borderRadius: 20,
-        background: isOpen ? "#7c3aed" : isModified ? "rgba(124,58,237,0.35)" : "rgba(255,255,255,0.1)",
-        color: isOpen || isModified ? "#fff" : "rgba(255,255,255,0.75)",
-        fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-        border: isModified && !isOpen ? "1px solid rgba(124,58,237,0.55)" : "1px solid rgba(255,255,255,0.15)",
+        flexShrink: 0, padding: "8px 12px", borderRadius: radius.chip,
+        background: isOpen ? color.surface3 : "rgba(19,19,26,0.9)",
+        color: isOpen || isModified ? color.primaryText : color.textSecondary,
+        fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: font.family, whiteSpace: "nowrap",
+        border: `1px solid ${isOpen || isModified ? color.primary : color.borderStrong}`,
         display: "flex", alignItems: "center", gap: 4,
-        boxShadow: isOpen ? "0 4px 14px rgba(124,58,237,0.5)" : "none",
-        transition: "background 0.2s, box-shadow 0.2s",
+        transition: "background 0.2s, border-color 0.2s, color 0.2s",
       }}>
+      <Icon size={13} strokeWidth={2} />
       {label}
       {isModified && (
         <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-          style={{ width: 6, height: 6, borderRadius: "50%", background: "#a3e635", marginRight: 2 }} />
+          style={{ width: 6, height: 6, borderRadius: "50%", background: color.primary, marginInlineStart: 2 }} />
       )}
     </motion.button>
-  );
-}
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-function EmptyState({ onReset }) {
-  return (
-    <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: "spring", stiffness: 280, damping: 28 }}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 20px", gap: 12 }}>
-      <motion.div animate={{ rotate: [0, -10, 10, -6, 6, 0] }}
-        transition={{ duration: 1.4, delay: 0.3, ease: "easeInOut" }} style={{ fontSize: 52 }}>🔍</motion.div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: SLATE, textAlign: "center", lineHeight: 1.4 }}>
-        אין ג׳סטות שעונות על הסינון המדויק שלך...
-      </div>
-      <div style={{ fontSize: 13, color: MUTED, textAlign: "center", lineHeight: 1.6, maxWidth: 240 }}>
-        נסה להרחיב את הרדיוס, להוריד את שכר המינימום, או לאפס את הסינון ⚡
-      </div>
-      <motion.button whileTap={{ scale: 0.96 }} onClick={onReset}
-        style={{
-          marginTop: 8, padding: "10px 24px", borderRadius: 50, border: "none",
-          background: "linear-gradient(135deg,#9333ea,#ec4899)",
-          color: "#fff", fontSize: 13.5, fontWeight: 800,
-          cursor: "pointer", fontFamily: "inherit",
-          boxShadow: "0 4px 16px rgba(147,51,234,0.35)",
-        }}>
-        ⚡ אפס סינונים
-      </motion.button>
-    </motion.div>
   );
 }
 
@@ -290,86 +265,89 @@ function JobCard({ job, isActive, onJobSelect, onViewEmployer }) {
       whileTap={{ scale: 0.985 }}
       onClick={() => onJobSelect(job)}
       style={{
-        background: "#fff",
-        borderRadius: 20,
+        ...styles.card,
         cursor: "pointer",
-        border: isActive ? `1.5px solid ${VIOLET}` : "1px solid #ede9fe",
-        boxShadow: isActive ? "0 8px 28px rgba(124,58,237,0.14)" : "0 2px 12px rgba(109,40,217,0.06)",
-        padding: "15px 15px 14px",
-        transition: "box-shadow 0.18s",
-        transform: isActive ? "translateY(-1px)" : "none",
+        borderColor: isActive ? color.primary : color.borderSubtle,
+        padding: 16,
         position: "relative",
+        overflow: "hidden",
+        transition: "border-color 0.18s, background 0.18s",
       }}
     >
-      {/* Active glow strip */}
+      {/* Active accent — 3px solid primary on the leading edge */}
       {isActive && (
-        <div style={{ position: "absolute", top: 0, right: 0, width: 3, height: "100%", background: "linear-gradient(180deg,#9333ea,#ec4899)", borderRadius: "0 20px 20px 0" }} />
+        <div style={{ position: "absolute", top: 0, insetInlineStart: 0, width: 3, height: "100%", background: color.primary }} />
       )}
 
-      {/* Employer + pay */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
-        <motion.div whileTap={{ scale: 0.93 }}
-          onClick={(e) => { e.stopPropagation(); onViewEmployer?.(); }}
-          style={{ fontSize: 11, color: VIOLET, fontWeight: 700, letterSpacing: 0.3, textTransform: "uppercase", cursor: "pointer", borderBottom: "1px dashed rgba(124,58,237,0.35)", paddingBottom: 1 }}>
-          {job.employer}
-        </motion.div>
-        <div style={{ fontSize: 15, fontWeight: 900, color: "#5b21b6", lineHeight: 1 }}>
-          {job.pay}
-          <span style={{ fontSize: 11, fontWeight: 500, color: "#a78bfa", marginRight: 2 }}> / שעה</span>
-        </div>
-      </div>
-
-      {/* Title */}
-      <div style={{ fontSize: 16, fontWeight: 800, color: SLATE, lineHeight: 1.3, marginBottom: 8 }}>
-        {job.title}
-      </div>
-
-      {/* New badge */}
-      {job.isNew && (
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 380, damping: 20 }}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(90deg,#4ade80,#059669)", borderRadius: 20, padding: "2px 10px", marginBottom: 7, fontSize: 11, fontWeight: 800, color: "#052e16" }}>
-          🆕 ג׳סטה חדשה על המפה!
-        </motion.div>
-      )}
-
-      {/* Rating */}
-      {job.employerRating && (
-        <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 8 }}>
-          {[1,2,3,4,5].map(s => (
-            <Star key={s} size={10}
-              fill={s <= Math.round(job.employerRating) ? GOLD : "#e2e8f0"}
-              color={s <= Math.round(job.employerRating) ? GOLD : "#e2e8f0"} />
-          ))}
-          <span style={{ fontSize: 11, color: MUTED, fontWeight: 600, marginRight: 3 }}>{job.employerRating}</span>
-        </div>
-      )}
-
-      {/* Meta */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: MUTED, fontWeight: 500 }}>
-          <Clock size={12} color="#c4b5fd" strokeWidth={2} /> {job.time}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: MUTED, fontWeight: 500 }}>
-          <MapPin size={12} color="#c4b5fd" strokeWidth={2} /> {job.dist}
-        </div>
-      </div>
-
-      {/* Perks */}
-      {job.perks?.length > 0 && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 4 }}>
-          {job.perks.slice(0, 2).map((p, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11.5, color: "#64748b", fontWeight: 500 }}>
-              <CheckCircle2 size={11} color="#a78bfa" strokeWidth={2.5} /> {p}
+      <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Employer + pay */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+            <motion.div whileTap={{ scale: 0.95 }}
+              onClick={(e) => { e.stopPropagation(); onViewEmployer?.(); }}
+              style={{ ...font.overline, color: color.primaryText, cursor: "pointer" }}>
+              {job.employer}
+            </motion.div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: color.textPrimary, lineHeight: 1, flexShrink: 0 }}>
+              {job.pay}
+              <span style={{ fontSize: 11, fontWeight: 400, color: color.textSecondary }}> / שעה</span>
             </div>
-          ))}
+          </div>
+
+          {/* Title */}
+          <div style={{ fontSize: 16, ...font.heading, lineHeight: 1.3, marginBottom: 8 }}>
+            {job.title}
+          </div>
+
+          {/* New badge */}
+          {job.isNew && (
+            <Badge variant="approved" style={{ marginBottom: 8 }}>ג׳סטה חדשה</Badge>
+          )}
+
+          {/* Rating */}
+          {job.employerRating ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 2, marginBottom: 8 }}>
+              {[1,2,3,4,5].map(s => (
+                <Star key={s} size={10} strokeWidth={1.5}
+                  fill={s <= Math.round(job.employerRating) ? color.warning : "transparent"}
+                  color={s <= Math.round(job.employerRating) ? color.warning : color.textMuted} />
+              ))}
+              <span style={{ fontSize: 11, color: color.textSecondary, fontWeight: 500, marginInlineStart: 4 }}>{job.employerRating}</span>
+            </div>
+          ) : null}
+
+          {/* Meta */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: color.textSecondary, fontWeight: 400 }}>
+              <Clock size={12} color={color.textMuted} strokeWidth={2} /> {job.time}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: color.textSecondary, fontWeight: 400 }}>
+              <MapPin size={12} color={color.textMuted} strokeWidth={2} /> {job.dist}
+            </div>
+          </div>
+
+          {/* Perks */}
+          {job.perks?.length > 0 && (
+            <div style={{ display: "flex", gap: 12 }}>
+              {job.perks.slice(0, 2).map((p, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: color.textSecondary, fontWeight: 400 }}>
+                  <CheckCircle2 size={11} color={color.success} strokeWidth={2} /> {p}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Trailing icon container — 32×32, surface-2, radius 8 */}
+        <div style={styles.iconBox(32)}>
+          <Briefcase size={16} color={color.primaryText} strokeWidth={1.75} />
+        </div>
+      </div>
 
       {/* Tap-to-view hint */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 10, paddingTop: 9, borderTop: "1px solid #f1f0fb" }}>
-        <span style={{ fontSize: 11.5, fontWeight: 700, color: VIOLET }}>לפרטים מלאים</span>
-        <ChevronRight size={13} color={VIOLET} strokeWidth={2.5} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${color.borderSubtle}` }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: color.primaryText }}>לפרטים מלאים</span>
+        <ChevronLeft size={13} color={color.primaryText} strokeWidth={2} />
       </div>
     </motion.div>
   );
@@ -402,9 +380,7 @@ function BottomSheet({ filteredJobs, allCount, activePin, onJobSelect, cardRefs,
       style={{
         position: "absolute", top: 0, left: 0, right: 0, height: "100%",
         y, zIndex: 800,
-        background: "#ffffff",
-        borderRadius: "26px 26px 0 0",
-        boxShadow: "0 -8px 32px rgba(124,58,237,0.10), 0 -1px 0 #ede9fe",
+        ...styles.sheet,
         display: "flex", flexDirection: "column", overflow: "hidden", touchAction: "none",
       }}
       drag="y"
@@ -414,33 +390,33 @@ function BottomSheet({ filteredJobs, allCount, activePin, onJobSelect, cardRefs,
       onDragEnd={handleDragEnd}
     >
       {/* Drag handle */}
-      <div style={{ padding: "10px 0 4px", display: "flex", justifyContent: "center", cursor: "grab", flexShrink: 0 }}
+      <div style={{ cursor: "grab", flexShrink: 0 }}
         onPointerDown={(e) => e.stopPropagation()}>
-        <div style={{ width: 44, height: 5, borderRadius: 3, background: "#ddd6fe", opacity: 0.8 }} />
+        <SheetHandle />
       </div>
 
       {/* Header */}
-      <div style={{ padding: "6px 18px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: SLATE }}>גיגים קרובים אליך</div>
-        <div style={{
-          fontSize: 12, fontWeight: 700,
-          color: isEmpty ? "#ef4444" : VIOLET,
-          background: isEmpty ? "#fef2f2" : VIOLET_LT,
-          padding: "3px 10px", borderRadius: 20,
-          transition: "background 0.3s, color 0.3s",
-        }}>
+      <div style={{ padding: "4px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ fontSize: 15, ...font.heading }}>גיגים קרובים אליך</div>
+        <Badge variant={isEmpty ? "locked" : "primary"}>
           {isEmpty ? "אין תוצאות" : `${filteredJobs.length} מתוך ${allCount}`}
-        </div>
+        </Badge>
       </div>
 
       {/* Cards */}
       <div
-        style={{ flex: 1, overflowY: "auto", padding: isEmpty ? "8px 20px 24px" : "0 13px 24px",
-          display: "flex", flexDirection: "column", gap: isEmpty ? 0 : 10 }}
+        style={{ flex: 1, overflowY: "auto", padding: isEmpty ? "8px 20px 24px" : "0 16px 24px",
+          display: "flex", flexDirection: "column", gap: isEmpty ? 0 : 12 }}
         onPointerDown={(e) => e.stopPropagation()}
       >
         {isEmpty ? (
-          <EmptyState onReset={onResetFilters} />
+          <DSEmptyState
+            icon={SearchX}
+            title="אין ג׳סטות שעונות על הסינון"
+            subtitle="נסה להרחיב את הרדיוס, להוריד את שכר המינימום או לאפס את הסינון"
+            action={onResetFilters}
+            actionLabel="אפס סינונים"
+          />
         ) : (
           <AnimatePresence>
             {filteredJobs.map((job) => (
@@ -467,9 +443,9 @@ function BottomSheet({ filteredJobs, allCount, activePin, onJobSelect, cardRefs,
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
 const FILTER_DEFS = [
-  { key: "radius",    label: (f) => `📍 ${f.radius} ק״מ`, isModified: (f) => f.radius < 50 },
-  { key: "minWage",   label: (f) => `💰 ₪${f.minWage}+`,  isModified: (f) => f.minWage > 40 },
-  { key: "minRating", label: (f) => `⭐ ${f.minRating > 0 ? f.minRating + " כוכבים" : "כולם"}`, isModified: (f) => f.minRating > 0 },
+  { key: "radius",    icon: MapPin,   label: (f) => `${f.radius} ק״מ`, isModified: (f) => f.radius < 50 },
+  { key: "minWage",   icon: Banknote, label: (f) => `₪${f.minWage}+`,  isModified: (f) => f.minWage > 40 },
+  { key: "minRating", icon: Star,     label: (f) => f.minRating > 0 ? `${f.minRating} כוכבים` : "כל דירוג", isModified: (f) => f.minRating > 0 },
 ];
 
 function FiltersBar({ filters, setFilters }) {
@@ -480,9 +456,9 @@ function FiltersBar({ filters, setFilters }) {
 
   return (
     <div style={{ pointerEvents: "auto" }}>
-      <div style={{ display: "flex", gap: 7, alignItems: "center", marginTop: 8, paddingBottom: 2 }}>
-        {FILTER_DEFS.map(({ key, label, isModified }) => (
-          <FilterPill key={key} label={label(filters)} isModified={isModified(filters)}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, paddingBottom: 4 }}>
+        {FILTER_DEFS.map(({ key, icon, label, isModified }) => (
+          <FilterPill key={key} icon={icon} label={label(filters)} isModified={isModified(filters)}
             isOpen={openFilter === key} onClick={() => toggleFilter(key)} />
         ))}
         {hasAnyModified && (
@@ -490,8 +466,10 @@ function FiltersBar({ filters, setFilters }) {
             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => { setFilters(FILTER_DEFAULTS); setOpenFilter(null); }}
-            style={{ flexShrink: 0, width: 28, height: 28, borderRadius: "50%", border: "none", background: "rgba(248,113,113,0.2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <IconX size={13} color="#f87171" strokeWidth={2.5} />
+            style={{ flexShrink: 0, width: 28, height: 28, borderRadius: "50%",
+              border: `1px solid ${color.borderStrong}`, background: "rgba(19,19,26,0.9)",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <IconX size={13} color={color.textSecondary} strokeWidth={2} />
           </motion.button>
         )}
       </div>
@@ -543,58 +521,53 @@ export default function JestaJobsFeed({ jobs = [], onJobSelect, onApply, onOpenS
     <div
       dir="rtl"
       style={{
-        fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
+        fontFamily: font.family,
         position: "relative", width: "100%", height: "100%", overflow: "hidden",
+        background: color.bg,
       }}
     >
       <LiveMap jobs={jobs} activePin={activePin} onPinClick={handlePinClick} visibleJobIds={visibleJobIds} />
 
-      {/* Floating header — glassmorphism over map */}
+      {/* Floating header over map */}
       <div
         style={{
           position: "absolute", top: 0, left: 0, right: 0,
-          zIndex: 1000, padding: "36px 14px 14px",
-          background: "linear-gradient(to bottom,rgba(30,8,100,0.9) 0%,rgba(30,8,100,0.6) 72%,transparent 100%)",
+          zIndex: 1000, padding: "36px 16px 16px",
+          background: "linear-gradient(to bottom, rgba(10,10,15,0.92) 0%, rgba(10,10,15,0.6) 72%, transparent 100%)",
           pointerEvents: "none",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, pointerEvents: "auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ fontSize: 26, fontWeight: 900, color: "#fff", letterSpacing: -0.5, textShadow: "0 2px 16px rgba(124,58,237,0.8)" }}>גסטה</span>
-            <Zap size={16} fill="#facc15" color="#facc15" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, pointerEvents: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 24, ...font.heading }}>גסטה</span>
+            <Zap size={16} color={color.primaryText} strokeWidth={2} />
           </div>
-          <div style={{ position: "relative" }}>
-            <motion.div whileTap={{ scale: 0.88 }} onClick={onOpenSidebar}
-              style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.3)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "pointer" }}>
-              🧑
-            </motion.div>
-            <div style={{ position: "absolute", bottom: 1, right: 1, width: 9, height: 9, borderRadius: "50%", background: "#4ade80", border: "2px solid rgba(30,8,100,0.8)", pointerEvents: "none" }} />
-          </div>
+          <Avatar size={36} online onClick={onOpenSidebar} surface={color.bg} />
         </div>
 
         <div style={{ pointerEvents: "auto" }}>
           <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            background: "rgba(10,5,30,0.58)", backdropFilter: "blur(22px)", WebkitBackdropFilter: "blur(22px)",
-            border: "1px solid rgba(255,255,255,0.13)", borderRadius: 18, padding: "10px 15px",
-            boxShadow: "0 4px 28px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)",
+            display: "flex", alignItems: "center", gap: 8,
+            background: "rgba(19,19,26,0.94)",
+            border: `1px solid ${color.borderStrong}`, borderRadius: radius.input, padding: "12px 16px",
+            boxShadow: shadow.card,
           }}>
-            <Search size={15} color="rgba(255,255,255,0.42)" strokeWidth={2} />
+            <Search size={15} color={color.textMuted} strokeWidth={2} />
             <input
               type="text" value={filters.keyword}
               onChange={(e) => setFilters((f) => ({ ...f, keyword: e.target.value }))}
               placeholder="חפש עבודה או מעסיק..." dir="rtl"
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 13.5, color: "#fff", fontWeight: 400, fontFamily: "inherit", letterSpacing: 0.1, caretColor: "#a78bfa" }}
+              style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 14, color: color.textPrimary, fontWeight: 400, fontFamily: "inherit", caretColor: color.primaryText }}
             />
             {filters.keyword && (
               <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.88 }}
                 onClick={() => setFilters((f) => ({ ...f, keyword: "" }))}
                 style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
-                <IconX size={14} color="rgba(255,255,255,0.5)" strokeWidth={2.5} />
+                <IconX size={14} color={color.textSecondary} strokeWidth={2} />
               </motion.button>
             )}
-            <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.15)", margin: "0 2px" }} />
-            <SlidersHorizontal size={14} color="rgba(167,139,250,0.85)" strokeWidth={2.5} />
+            <div style={{ width: 1, height: 16, background: color.borderStrong }} />
+            <SlidersHorizontal size={14} color={color.primaryText} strokeWidth={2} />
           </div>
           <FiltersBar filters={filters} setFilters={setFilters} />
         </div>

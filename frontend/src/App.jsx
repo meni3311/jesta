@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { color, radius, shadow, font } from "./design-system";
+import { Spinner } from "./components/ui";
 
 import { getJobs, applyToJob }     from "./services/api";
 import AuthScreen                  from "./components/AuthScreen";
@@ -101,12 +103,13 @@ function PhoneShell({ children }) {
   return (
     <div style={{
       display: "flex", justifyContent: "center", alignItems: "flex-start",
-      minHeight: "100vh", background: "#06030f", padding: "24px 0", overflow: "hidden",
+      minHeight: "100vh", background: color.bg, padding: "24px 0", overflow: "hidden",
     }}>
       <div style={{
         width: 360, height: 780, borderRadius: 44, overflow: "hidden",
-        position: "relative", border: "1.5px solid #1e1040",
-        boxShadow: "0 0 0 7px #0d0824, 0 40px 80px rgba(0,0,0,0.8)",
+        position: "relative", border: `1px solid ${color.borderStrong}`,
+        background: color.bg,
+        boxShadow: `0 0 0 7px ${color.surface1}, 0 40px 80px rgba(0,0,0,0.8)`,
       }}>
         {children}
       </div>
@@ -291,11 +294,8 @@ export default function App() {
   if (authState === null) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center",
-        minHeight: "100vh", background: "#06030f" }}>
-        <motion.div animate={{ rotate: 360 }}
-          transition={{ duration: 0.85, repeat: Infinity, ease: "linear" }}
-          style={{ width: 28, height: 28, borderRadius: "50%",
-            border: "3px solid #7c3aed", borderTopColor: "transparent" }} />
+        minHeight: "100vh", background: color.bg }}>
+        <Spinner size={28} />
       </div>
     );
   }
@@ -336,11 +336,8 @@ export default function App() {
           initial={pushEnter} animate={slide.center} exit={pushExit} transition={tx}>
           {jobsStatus === "loading" ? (
             <div style={{ width: "100%", height: "100%", display: "flex",
-              alignItems: "center", justifyContent: "center", background: "#06030f" }}>
-              <motion.div animate={{ rotate: 360 }}
-                transition={{ duration: 0.85, repeat: Infinity, ease: "linear" }}
-                style={{ width: 32, height: 32, borderRadius: "50%",
-                  border: "3px solid #7c3aed", borderTopColor: "transparent" }} />
+              alignItems: "center", justifyContent: "center", background: color.bg }}>
+              <Spinner size={32} />
             </div>
           ) : (
             <JestaJobsFeed jobs={jobs} onJobSelect={goToDetails} onApply={goToPending}
@@ -391,31 +388,24 @@ export default function App() {
             initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 28 }}
-            style={{ position: "absolute", bottom: 28, left: 18, zIndex: 6000 }}>
-            {TOTAL_UNREAD > 0 && (
-              <motion.div
-                animate={{ scale: [1, 1.55, 1], opacity: [0.5, 0, 0.5] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                style={{ position: "absolute", inset: 0, borderRadius: "50%",
-                  background: "linear-gradient(135deg,#9333ea,#ec4899)", pointerEvents: "none" }} />
-            )}
-            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+            style={{ position: "absolute", bottom: 28, left: 16, zIndex: 6000 }}>
+            <motion.button whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}
               onClick={() => isGuest ? setGuestModal(true) : setInboxOpen(true)}
               style={{
                 width: 52, height: 52, borderRadius: "50%", border: "none",
-                background: "linear-gradient(135deg,#9333ea,#ec4899)",
-                boxShadow: "0 6px 20px rgba(147,51,234,0.45)",
+                background: color.primary,
+                boxShadow: shadow.glow,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: "pointer", position: "relative",
               }}>
               <MessageCircle size={22} color="#fff" strokeWidth={2} />
               {TOTAL_UNREAD > 0 && (
-                <div style={{ position: "absolute", top: -3, right: -3,
+                <div style={{ position: "absolute", top: -2, right: -2,
                   minWidth: 18, height: 18, borderRadius: 9,
-                  background: "#fff", border: "2px solid #9333ea",
+                  background: color.surface1, border: `1px solid ${color.primary}`,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, fontWeight: 900, color: "#9333ea",
-                  fontFamily: "'Heebo',system-ui,sans-serif" }}>
+                  fontSize: 9, fontWeight: 700, color: color.primaryText,
+                  fontFamily: font.family }}>
                   {TOTAL_UNREAD}
                 </div>
               )}
@@ -502,19 +492,22 @@ export default function App() {
             style={{
               position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
               zIndex: 9999, whiteSpace: "nowrap",
-              background: verifiedBanner === "success"
-                ? "linear-gradient(135deg,#4ade80,#16a34a)"
-                : "rgba(239,68,68,0.92)",
-              color: "#fff", fontSize: 13, fontWeight: 800,
-              padding: "10px 20px", borderRadius: 50,
-              boxShadow: "0 6px 24px rgba(0,0,0,0.3)",
-              fontFamily: "'Heebo',system-ui,sans-serif",
+              display: "flex", alignItems: "center", gap: 8,
+              background: color.surface3,
+              border: `1px solid ${color.borderStrong}`,
+              color: verifiedBanner === "success" ? color.success
+                   : verifiedBanner === "expired" ? color.warning
+                   : color.danger,
+              fontSize: 13, fontWeight: 600,
+              padding: "10px 20px", borderRadius: radius.chip,
+              boxShadow: shadow.card,
+              fontFamily: font.family,
             }}>
             {verifiedBanner === "success"
-              ? "✅ המייל אומת בהצלחה!"
+              ? <><CheckCircle2 size={15} strokeWidth={2} /> המייל אומת בהצלחה!</>
               : verifiedBanner === "expired"
-              ? "⏰ קישור האימות פג תוקף"
-              : "❌ קישור אימות לא תקין"}
+              ? <><Clock size={15} strokeWidth={2} /> קישור האימות פג תוקף</>
+              : <><AlertCircle size={15} strokeWidth={2} /> קישור אימות לא תקין</>}
           </motion.div>
         )}
       </AnimatePresence>

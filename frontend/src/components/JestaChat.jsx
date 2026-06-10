@@ -9,8 +9,7 @@
  * Props:
  *   isOpen        boolean
  *   onClose       fn
- *   contract      { chatId, workerName, workerEmoji, employerName, employerEmoji,
- *                   jobTitle, status }
+ *   contract      { chatId, workerName, employerName, jobTitle, status }
  *                 status: "approved" | "finished" | "pending" | "rejected"
  *   viewerRole    "worker" | "employer"
  *   currentUserId string — the logged-in user's id (to mark own messages)
@@ -20,10 +19,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Send, Lock } from "lucide-react";
 import { getChatMessages, sendChatMessage } from "../services/api";
 import { supabase } from "../lib/supabaseClient";
-
-const SLATE  = "#0f172a";
-const MUTED  = "#64748b";
-const VIOLET = "#7c3aed";
+import { color, radius, font, styles } from "../design-system";
+import { Avatar, Badge } from "./ui";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(iso) {
@@ -58,21 +55,22 @@ function MessageBubble({ msg, viewerRole }) {
         display: "flex",
         justifyContent: isMine ? "flex-start" : "flex-end",
         marginBottom: 8,
-        paddingInline: 14,
+        paddingInline: 16,
       }}
     >
       <div style={{ maxWidth: "76%" }}>
         <div
           style={{
-            background: isMine ? "#f1f5f9" : "#f5f3ff",
-            color: SLATE,
+            background: isMine ? color.primary : color.surface2,
+            color: isMine ? "#ffffff" : color.textPrimary,
+            border: isMine ? "none" : `1px solid ${color.borderSubtle}`,
             borderRadius: isMine
-              ? "18px 18px 18px 4px"
-              : "18px 18px 4px 18px",
-            padding: "10px 14px",
+              ? "16px 16px 16px 4px"
+              : "16px 16px 4px 16px",
+            padding: "8px 12px",
             fontSize: 14,
-            fontWeight: 500,
-            lineHeight: 1.5,
+            fontWeight: 400,
+            lineHeight: 1.6,
             wordBreak: "break-word",
           }}
         >
@@ -80,9 +78,9 @@ function MessageBubble({ msg, viewerRole }) {
         </div>
         <div
           style={{
-            fontSize: 10.5,
-            color: "#94a3b8",
-            marginTop: 3,
+            fontSize: 10,
+            color: color.textMuted,
+            marginTop: 4,
             textAlign: isMine ? "right" : "left",
             paddingInline: 4,
           }}
@@ -169,12 +167,9 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
   };
 
   // Counterparty info
-  const counterName  = viewerRole === "worker"
-    ? contract?.employerName  ?? "מעסיק"
-    : contract?.workerName    ?? "מועמד";
-  const counterEmoji = viewerRole === "worker"
-    ? contract?.employerEmoji ?? "🏢"
-    : contract?.workerEmoji   ?? "🧑";
+  const counterName = viewerRole === "worker"
+    ? contract?.employerName ?? "מעסיק"
+    : contract?.workerName   ?? "מועמד";
 
   return (
     <AnimatePresence>
@@ -189,19 +184,16 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
             position: "absolute",
             inset: 0,
             zIndex: 8000,
-            display: "flex",
-            flexDirection: "column",
-            background: "#fff",
-            fontFamily: "'Heebo','Segoe UI',system-ui,sans-serif",
+            ...styles.screen,
           }}
           dir="rtl"
         >
           {/* ── Header ── */}
           <div
             style={{
-              background: "#fff",
-              padding: "48px 16px 14px",
-              borderBottom: "1.5px solid #ede9fe",
+              background: color.surface1,
+              padding: "48px 16px 12px",
+              borderBottom: `1px solid ${color.borderSubtle}`,
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
@@ -211,33 +203,19 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={onClose}
-              style={{
-                width: 36, height: 36, borderRadius: "50%",
-                background: "#f1f5f9", border: "none",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", flexShrink: 0,
-              }}
+              style={styles.iconButton}
             >
-              <ArrowRight size={18} color={SLATE} strokeWidth={2.5} />
+              <ArrowRight size={18} color={color.textPrimary} strokeWidth={2} />
             </motion.button>
 
             {/* Avatar */}
-            <div
-              style={{
-                width: 42, height: 42, borderRadius: "50%",
-                background: "linear-gradient(135deg,#a78bfa,#7c3aed)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 20, flexShrink: 0,
-              }}
-            >
-              {counterEmoji}
-            </div>
+            <Avatar size={40} employer={viewerRole === "worker"} surface={color.surface1} />
 
             {/* Name + Job */}
             <div style={{ flex: 1, overflow: "hidden" }}>
               <div
                 style={{
-                  fontSize: 15, fontWeight: 800, color: SLATE,
+                  fontSize: 15, fontWeight: 600, color: color.textPrimary,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
@@ -245,7 +223,7 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
               </div>
               <div
                 style={{
-                  fontSize: 12, color: VIOLET, fontWeight: 600,
+                  fontSize: 12, color: color.primaryText, fontWeight: 500,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}
               >
@@ -254,18 +232,7 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
             </div>
 
             {/* Lock badge when chat is locked */}
-            {locked && (
-              <div
-                style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  background: "#fef2f2", border: "1px solid #fecaca",
-                  borderRadius: 20, padding: "4px 10px", flexShrink: 0,
-                }}
-              >
-                <Lock size={11} color="#ef4444" strokeWidth={2.5} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#ef4444" }}>נעול</span>
-              </div>
-            )}
+            {locked && <Badge variant="locked" icon={Lock}>נעול</Badge>}
           </div>
 
           {/* ── Messages ── */}
@@ -275,7 +242,7 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
               overflowY: "auto",
               paddingTop: 16,
               paddingBottom: 8,
-              background: "#fafafa",
+              background: color.bg,
             }}
           >
             {messages.map((msg) => (
@@ -288,14 +255,14 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
           {locked && (
             <div
               style={{
-                background: "#fff7ed",
-                borderTop: "1.5px solid #fed7aa",
-                padding: "10px 16px",
+                background: color.surface2,
+                borderTop: `1px solid ${color.borderSubtle}`,
+                padding: "12px 16px",
                 textAlign: "center",
-                fontSize: 12.5,
-                color: "#92400e",
-                fontWeight: 600,
-                lineHeight: 1.5,
+                fontSize: 12,
+                color: color.textMuted,
+                fontWeight: 500,
+                lineHeight: 1.6,
                 flexShrink: 0,
               }}
             >
@@ -306,9 +273,9 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
           {/* ── Input bar ── */}
           <div
             style={{
-              background: "#fff",
-              borderTop: locked ? "none" : "1.5px solid #ede9fe",
-              padding: "10px 14px 18px",
+              background: color.surface1,
+              borderTop: locked ? "none" : `1px solid ${color.borderSubtle}`,
+              padding: "12px 16px 20px",
               display: "flex",
               alignItems: "center",
               gap: 8,
@@ -322,54 +289,47 @@ export default function JestaChat({ isOpen, onClose, contract, viewerRole = "wor
               onKeyDown={handleKeyDown}
               placeholder={locked ? "" : "כתוב הודעה..."}
               style={{
+                ...styles.input,
                 flex: 1,
-                height: 42,
-                borderRadius: 21,
-                border: "1.5px solid",
-                borderColor: locked ? "#e2e8f0" : "#ddd6fe",
+                height: 44,
                 padding: "0 16px",
-                fontSize: 14,
-                fontFamily: "inherit",
-                background: locked ? "#f8fafc" : "#fff",
-                color: SLATE,
-                outline: "none",
+                borderRadius: radius.chip,
                 direction: "rtl",
-                transition: "border-color 0.2s",
                 cursor: locked ? "not-allowed" : "text",
                 opacity: locked ? 0.5 : 1,
               }}
               onFocus={(e) => {
-                if (!locked) e.target.style.borderColor = VIOLET;
+                if (!locked) e.target.style.borderColor = color.primary;
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = locked ? "#e2e8f0" : "#ddd6fe";
+                e.target.style.borderColor = color.borderSubtle;
               }}
             />
             <motion.button
-              whileTap={locked ? {} : { scale: 0.88 }}
+              whileTap={locked ? {} : { scale: 0.92 }}
               onClick={handleSend}
               disabled={locked || sending || !input.trim()}
               style={{
-                width: 42, height: 42,
+                width: 44, height: 44,
                 borderRadius: "50%",
                 border: "none",
                 background:
                   locked || !input.trim()
-                    ? "#e2e8f0"
-                    : "linear-gradient(135deg,#9333ea,#ec4899)",
+                    ? color.surface3
+                    : color.primary,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 cursor: locked || !input.trim() ? "not-allowed" : "pointer",
                 flexShrink: 0,
-                transition: "background 0.2s",
+                transition: "background 0.2s, box-shadow 0.2s",
                 boxShadow:
                   !locked && input.trim()
-                    ? "0 3px 10px rgba(147,51,234,0.35)"
+                    ? "0 0 20px rgba(124,58,237,0.3)"
                     : "none",
               }}
             >
               <Send
                 size={17}
-                color={locked || !input.trim() ? "#94a3b8" : "#fff"}
+                color={locked || !input.trim() ? color.textMuted : "#fff"}
                 strokeWidth={2}
                 style={{ transform: "scaleX(-1)" }}
               />
