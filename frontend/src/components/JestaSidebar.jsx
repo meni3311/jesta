@@ -13,6 +13,7 @@ import {
   X, CalendarDays, Wallet, UserCog, MessageSquare,
   ChevronLeft, Briefcase, BarChart3, PlusCircle,
   Receipt, LogOut, ShieldCheck, ShieldAlert, Zap, Star, Eye, Trophy,
+  Bell, Sparkles, FlaskConical, CalendarCheck,
 } from "lucide-react";
 import { color, radius, font, styles } from "../design-system";
 import { Avatar, Badge, SegmentedControl, PrimaryButton } from "./ui";
@@ -43,7 +44,7 @@ function LevelBar({ pct = 0, completedJobs = 0 }) {
   );
 }
 
-function NavItem({ icon: Icon, label, sub, badge, onClick = () => {} }) {
+function NavItem({ icon: Icon, label, sub, badge, dot = false, onClick = () => {} }) {
   return (
     <motion.button whileHover={{ x: -4, backgroundColor: color.surface2 }} whileTap={{ scale: 0.98 }}
       onClick={onClick}
@@ -57,6 +58,12 @@ function NavItem({ icon: Icon, label, sub, badge, onClick = () => {} }) {
             borderRadius: 7, background: color.primary, border: `2px solid ${color.surface1}`,
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 8, fontWeight: 700, color: "#fff", boxSizing: "content-box" }}>{badge}</div>
+        )}
+        {/* Green dot — availability is set (System 2) */}
+        {dot && !badge && (
+          <div style={{ position: "absolute", top: -3, insetInlineEnd: -3, width: 9, height: 9,
+            borderRadius: "50%", background: color.success,
+            border: `2px solid ${color.surface1}`, boxSizing: "content-box" }} />
         )}
       </div>
       <div style={{ flex: 1 }}>
@@ -72,6 +79,9 @@ export default function JestaSidebar({
   isOpen, onClose, onGoToSchedule, onOpenCreateModal,
   onGoToEmployerDashboard, onSwitchMode, onOpenProfile,
   onOpenProfileSettings, onSignOut,
+  onOpenNotifications, onOpenOffers, onToggleDevPro,
+  onOpenAvailability, availabilitySet = false,
+  unreadCount = 0,
   user = null, isGuest = false, mode = "worker",
 }) {
   // Initialise from the authoritative mode coming from App, then keep in sync.
@@ -179,6 +189,17 @@ export default function JestaSidebar({
                     exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.22 }}>
                     <NavItem icon={BarChart3}  label="דאשבורד וסטטיסטיקות" sub="הג׳סטות והמועמדים שלך" onClick={() => { onGoToEmployerDashboard?.(); onClose(); }} />
                     <NavItem icon={PlusCircle} label="פרסם ג׳סטה חדשה"   sub="הוסף משרה חדשה"    onClick={() => { onOpenCreateModal?.(); onClose(); }} />
+                    <NavItem icon={Bell} label="התראות" sub="עדכונים על מועמדים והצעות"
+                      badge={unreadCount > 0 ? unreadCount : undefined}
+                      onClick={() => { onOpenNotifications?.(); onClose(); }} />
+                    {/* DEV ONLY: simulate Pro status to test the gating (System 3).
+                        Hidden in production builds. */}
+                    {import.meta.env.DEV && (
+                      <NavItem icon={FlaskConical}
+                        label={user?.isPro ? "כבה מצב פרו (DEV)" : "הדלק מצב פרו (DEV)"}
+                        sub={user?.isPro ? "פרו פעיל — לחצו לכיבוי" : "סימולציית פרו לבדיקות"}
+                        onClick={() => { onToggleDevPro?.(); }} />
+                    )}
                     {/* TODO: payments history needs a payments table + endpoint
                         (none exist yet) — shown disabled until then */}
                     <div style={{ opacity: 0.45, pointerEvents: "none" }}>
@@ -190,6 +211,29 @@ export default function JestaSidebar({
                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.22 }}>
                     <NavItem icon={CalendarDays} label="לוח המשמרות שלי" sub="המשמרות והבקשות שלך" onClick={() => { onGoToSchedule?.(); onClose(); }} />
+
+                    {/* Availability (System 2): big CTA until set, then a
+                        normal entry with a green "active" dot */}
+                    {availabilitySet ? (
+                      <NavItem icon={CalendarCheck} label="ערוך זמינות" dot
+                        sub="פרופיל הזמינות שלך פעיל"
+                        onClick={() => { onOpenAvailability?.(); onClose(); }} />
+                    ) : (
+                      <div style={{ padding: "8px 4px" }}>
+                        <PrimaryButton
+                          onClick={() => { onOpenAvailability?.(); onClose(); }}
+                          style={{ fontSize: 13, height: 48 }}>
+                          <CalendarCheck size={16} color="#fff" strokeWidth={2} />
+                          הגדר זמינות וקבל הצעות אישיות
+                        </PrimaryButton>
+                      </div>
+                    )}
+
+                    <NavItem icon={Sparkles} label="הצעות אישיות" sub="הזמנות ישירות ממעסיקים"
+                      onClick={() => { onOpenOffers?.(); onClose(); }} />
+                    <NavItem icon={Bell} label="התראות" sub="אישורי הגעה, דירוגים ועדכונים"
+                      badge={unreadCount > 0 ? unreadCount : undefined}
+                      onClick={() => { onOpenNotifications?.(); onClose(); }} />
                     {/* TODO: work/earnings history needs a payments/earnings
                         endpoint (none exists yet) — shown disabled until then */}
                     <div style={{ opacity: 0.45, pointerEvents: "none" }}>

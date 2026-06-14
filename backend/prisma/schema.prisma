@@ -3,9 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
@@ -20,6 +18,30 @@ enum ApplicationStatus {
   APPROVED
   REJECTED
   COMPLETED
+  NO_SHOW   // employer marked the worker as a no-show
+}
+
+enum NotificationType {
+  CONFIRM_SHIFT         // legacy name for PRE_SHIFT_REMINDER (old rows)
+  CONFIRM_SHIFT_URGENT  // T-2h second, urgent reminder
+  JOB_REOPENED          // legacy name for NO_SHOW_FALLBACK (old rows)
+  RATE_REQUEST          // legacy name for RATING_REQUEST (old rows)
+  DIRECT_OFFER          // Pro employer sent a personal job offer
+  OFFER_RESPONSE        // worker accepted / declined a direct offer
+  GENERAL
+  NEW_APPLICANT         // employer: a teenager applied to your job
+  APPLICATION_APPROVED  // teenager: the employer approved you
+  PRE_SHIFT_REMINDER    // teenager: T-3h "please confirm arrival"
+  SHIFT_CONFIRMED       // employer: the teenager confirmed arrival
+  NO_SHOW_FALLBACK      // pending applicants: spot reopened after a no-show
+  RATING_REQUEST        // both sides after a completed gesta
+  EMERGENCY_GESTA       // nearby available teenagers: emergency job posted
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 // ─── Models ──────────────────────────────────────────────────────────────────
@@ -32,8 +54,31 @@ model User {
   role          UserRole
   fullName      String
   avatarUrl     String?
-  rating        Float    @default(0)
+  rating        Float    @default(0)   // rating_avg — average of received ratings
+  ratingCount   Int      @default(0)   // how many ratings the average is based on
   completedJobs Int      @default(0)
+
+  // ── Jesta Score (0-100 composite) ──
+  // 40% avg rating · 30% attendance · 20% response speed · 10% completed count.
+  // 60 = the neutral baseline for a brand-new user (see ScoreService).
+  jestaScore       Float @default(60)
+  showUpCount      Int   @default(0)  // confirmed-completed shifts
+  noShowCount      Int   @default(0)  // employer-marked no-shows
+  responseCount    Int   @default(0)  // samples in the response-speed average
+  responseTotalMin Float @default(0)  // sum of minutes-to-confirm (avg = total/count)
+
+  // ── Reliability / strikes ──
+  warningFlag    Boolean   @default(false) // 1st no-show: visible warning
+  suspendedUntil DateTime?                 // 2nd no-show: 48h suspension
+  reviewFlag     Boolean   @default(false) // 3rd no-show: blocked pending manual review
+
+  // ── Pro employer plan ──
+  isPro       Boolean @default(false)
+  proFeatures Json    @default("{}") // future flags, e.g. { "prioritySupport": true }
+
+  // ── Direct hiring (worker side) ──
+  availability Json? // e.g. { "open": true, "days": ["א","ב"], "hours": "16:00-22:00", "note": "..." }
+
   isVerified               Boolean   @default(false)
   emailVerificationToken   String?
   emailVerificationExpiry  DateTime?
@@ -41,13 +86,40 @@ model User {
   updatedAt                DateTime  @updatedAt
 
   // Relations
-  postedJobs    Job[]          @relation("EmployerJobs")
-  applications  Application[]
-  employerChats Chat[]         @relation("EmployerChats")
-  workerChats   Chat[]         @relation("WorkerChats")
-  sentMessages  Message[]      @relation("SentMessages")
+  postedJobs      Job[]          @relation("EmployerJobs")
+  applications    Application[]
+  employerChats   Chat[]         @relation("EmployerChats")
+  workerChats     Chat[]         @relation("WorkerChats")
+  sentMessages    Message[]      @relation("SentMessages")
+  ratingsGiven    Rating[]       @relation("RatingsGiven")
+  ratingsReceived Rating[]       @relation("RatingsReceived")
+  notifications   Notification[]
+  offersSent      JobOffer[]     @relation("OffersSent")
+  offersReceived  JobOffer[]     @relation("OffersReceived")
+  availabilitySlots AvailabilitySlot[]
 
   @@map("users")
+}
+
+// ── Availability profile (System 2) ─────────────────────────────────────────
+// One row per selected weekly time block. minWage / categories /
+// isOpenToOffers ride on every row; the API rewrites a user's rows atomically.
+model AvailabilitySlot {
+  id             String   @id @default(uuid())
+  userId         String
+  dayOfWeek      Int      // 0 = Sunday … 6 = Saturday
+  startTime      String   // "HH:MM" zero-padded
+  endTime        String   // "HH:MM"
+  minWage        Float    @default(0)
+  categories     String[] @default([])
+  isOpenToOffers Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dayOfWeek, startTime])
+  @@index([userId])
+  @@map("availability")
 }
 
 model Job {
@@ -56,12 +128,24 @@ model Job {
   title       String
   description String?
   pay         Float    // hourly rate (NIS)
+  requiredWorkers Int  @default(1) // how many workers the employer needs
   address     String
   lat         Float
   lng         Float
   startTime   DateTime
   endTime     DateTime
   isActive    Boolean  @default(true)
+  isInsured   Boolean  @default(false) // Pro: "ג'סטה מבוטחת" — auto-fallback + priority support on no-show
+
+  // ── Emergency Gesta (ג'סטה חירום) ──
+  // Starts within 3h; wage auto-raised by 20% (pay = basePay * 1.2);
+  // pinned to the top of all feeds; nearby available workers are notified.
+  isEmergency Boolean  @default(false)
+  basePay     Float?   // original wage before the +20% emergency bonus
+
+  category    String?   // job category id, e.g. 'delivery' | 'babysit' | 'events'
+  cancelledAt DateTime? // employer cancelled the job
+
   perks       String[] // e.g. ["מזומן בסוף המשמרת", "אוכל כלול"]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -69,6 +153,8 @@ model Job {
   // Relations
   employer     User          @relation("EmployerJobs", fields: [employerId], references: [id])
   applications Application[]
+  ratings      Rating[]
+  offers       JobOffer[]
 
   @@map("jobs")
 }
@@ -78,6 +164,20 @@ model Application {
   jobId     String
   workerId  String
   status    ApplicationStatus @default(PENDING)
+
+  // true when the rejection was automatic (another applicant was approved) —
+  // these applicants ARE re-invited by the no-show fallback flow; manually
+  // rejected ones are not.
+  autoRejected Boolean @default(false)
+
+  // ── Reliability timestamps ──
+  approvedAt         DateTime? // when the employer approved (basis for response-speed)
+  confirmedAt        DateTime? // worker tapped "אישור הגעה"
+  noShowAt           DateTime? // employer marked no-show
+  completedAt        DateTime? // employer marked completed
+  preShiftNotifiedAt DateTime? // T-3h confirmation prompt sent
+  urgentNotifiedAt   DateTime? // T-2h urgent reminder sent
+
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
@@ -88,6 +188,65 @@ model Application {
 
   @@unique([jobId, workerId])
   @@map("applications")
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  jobId      String
+  fromUserId String
+  toUserId   String
+  score      Int      // 1-5 stars
+  comment    String?  // optional, max 100 chars (validated in DTO)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  job      Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  fromUser User @relation("RatingsGiven",    fields: [fromUserId], references: [id])
+  toUser   User @relation("RatingsReceived", fields: [toUserId],   references: [id])
+
+  @@unique([jobId, fromUserId]) // one rating per rater per gesta
+  @@index([toUserId])
+  @@map("ratings")
+}
+
+model Notification {
+  id            String           @id @default(uuid())
+  userId        String
+  type          NotificationType
+  title         String           // short Hebrew headline
+  body          String?          // optional longer text
+  jobId         String?          // loose references (no FK — survives job deletion)
+  applicationId String?
+  offerId       String?
+  isRead        Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model JobOffer {
+  id          String      @id @default(uuid())
+  jobId       String
+  employerId  String
+  workerId    String
+  status      OfferStatus @default(PENDING)
+  message     String?     // optional personal note from the employer
+  createdAt   DateTime    @default(now())
+  respondedAt DateTime?
+
+  // Relations
+  job      Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  employer User @relation("OffersSent",     fields: [employerId], references: [id])
+  worker   User @relation("OffersReceived", fields: [workerId],   references: [id])
+
+  @@unique([jobId, workerId]) // one offer per worker per job
+  @@index([workerId, status])
+  @@map("job_offers")
 }
 
 model Chat {

@@ -10,9 +10,9 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight, Camera, ShieldCheck, ShieldAlert,
-  Mail, Phone, User, Save, UserRound,
+  Mail, Phone, User, Save, UserRound, Sparkles,
 } from "lucide-react";
-import { updateProfile, uploadAvatar, sendVerificationEmail } from "../services/api";
+import { updateProfile, uploadAvatar, sendVerificationEmail, updateAvailability } from "../services/api";
 import { color, radius, shadow, font, styles } from "../design-system";
 import { PrimaryButton, SectionLabel, Spinner } from "./ui";
 
@@ -40,6 +40,106 @@ function InputRow({ icon: Icon, label, value, onChange, type = "text", placehold
             ...(readOnly && { color: color.textMuted, background: color.surface2, cursor: "default" }),
           }} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * AvailabilityCard (System 3): workers opt in to the Pro direct-hiring browse
+ * list ("הצעות אישיות"). Saves { open, days, hours, note } via
+ * PATCH /users/availability.
+ */
+const WEEK_DAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"];
+
+function AvailabilityCard({ user, onUserUpdate, showToast }) {
+  const initial = user?.availability ?? {};
+  const [open,   setOpen]   = useState(!!initial.open);
+  const [days,   setDays]   = useState(initial.days ?? []);
+  const [hours,  setHours]  = useState(initial.hours ?? "");
+  const [note,   setNote]   = useState(initial.note ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const toggleDay = (d) =>
+    setDays((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]);
+
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const updated = await updateAvailability({
+        open,
+        ...(days.length && { days }),
+        ...(hours.trim() && { hours: hours.trim() }),
+        ...(note.trim()  && { note: note.trim() }),
+      });
+      onUserUpdate?.(updated);
+      showToast?.("פרופיל הזמינות נשמר");
+    } catch {
+      showToast?.("שמירת הזמינות נכשלה", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ ...styles.card, margin: "12px 16px 0", padding: "20px 16px 24px", flexShrink: 0 }}>
+      <SectionLabel>זמינות להצעות אישיות</SectionLabel>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <div style={styles.iconBox(36)}>
+          <Sparkles size={16} color={open ? color.primaryText : color.textMuted} strokeWidth={1.75} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: color.textPrimary }}>פתוח להצעות ישירות</div>
+          <div style={{ fontSize: 11, color: color.textSecondary, marginTop: 2, lineHeight: 1.5 }}>
+            מעסיקי פרו יוכלו למצוא אותך ולשלוח הצעות עבודה אישיות
+          </div>
+        </div>
+        <motion.button whileTap={{ scale: 0.92 }} onClick={() => setOpen((o) => !o)}
+          style={{ width: 44, height: 26, borderRadius: 13, border: "none", flexShrink: 0,
+            background: open ? color.primary : color.surface3,
+            cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+          <motion.div animate={{ x: open ? -18 : 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20,
+              borderRadius: "50%", background: "#fff" }} />
+        </motion.button>
+      </div>
+
+      {open && (
+        <>
+          <div style={{ fontSize: 12, color: color.textSecondary, fontWeight: 500, marginBottom: 8 }}>ימים</div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {WEEK_DAYS.map((d) => {
+              const active = days.includes(d);
+              return (
+                <motion.button key={d} whileTap={{ scale: 0.9 }} onClick={() => toggleDay(d)}
+                  style={{ width: 34, height: 34, borderRadius: "50%",
+                    border: `1px solid ${active ? color.primary : color.borderSubtle}`,
+                    background: active ? color.primarySoft : color.surface2,
+                    color: active ? color.primaryText : color.textSecondary,
+                    fontSize: 13, fontWeight: 600, fontFamily: font.family, cursor: "pointer" }}>
+                  {d}
+                </motion.button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 12, color: color.textSecondary, fontWeight: 500, marginBottom: 8 }}>שעות</div>
+          <input value={hours} onChange={(e) => setHours(e.target.value)}
+            placeholder='לדוגמה: "16:00-22:00"' dir="auto"
+            style={{ ...styles.input, marginBottom: 14 }} />
+          <div style={{ fontSize: 12, color: color.textSecondary, fontWeight: 500, marginBottom: 8 }}>הערה (אופציונלי)</div>
+          <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))}
+            placeholder='לדוגמה: "מעדיף אירועים, יש לי אופניים חשמליים"' dir="auto"
+            style={{ ...styles.input, marginBottom: 4 }} />
+        </>
+      )}
+
+      <motion.button whileTap={{ scale: 0.98 }} onClick={handleSave} disabled={saving}
+        style={{ ...styles.buttonSecondary, height: 46, fontSize: 13, marginTop: 12,
+          ...(saving && { opacity: 0.5, cursor: "not-allowed" }) }}>
+        {saving ? <Spinner size={16} /> : "שמור זמינות"}
+      </motion.button>
     </div>
   );
 }
@@ -248,6 +348,11 @@ export default function JestaProfileSettings({ user, onBack, onUserUpdate }) {
           )}
         </PrimaryButton>
       </div>
+
+      {/* Availability card (workers — System 3 direct hiring) */}
+      {user?.role === "WORKER" && (
+        <AvailabilityCard user={user} onUserUpdate={onUserUpdate} showToast={showToast} />
+      )}
 
       {/* Email Verification card */}
       <div style={{ ...styles.card, margin: "12px 16px 24px",

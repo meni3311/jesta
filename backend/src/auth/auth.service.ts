@@ -24,7 +24,14 @@ const USER_SELECT = {
   phone:         true,
   isVerified:    true,
   rating:        true,
+  ratingCount:   true,
+  jestaScore:    true,
   completedJobs: true,
+  warningFlag:   true,
+  suspendedUntil:true,
+  isPro:         true,
+  proFeatures:   true,
+  availability:  true,
   createdAt:     true,
 } as const;
 

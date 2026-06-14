@@ -15,7 +15,7 @@ import {
   Diamond, Trophy, Sparkles, CalendarDays, Banknote,
 } from "lucide-react";
 import { color, radius, shadow, font, styles } from "../design-system";
-import { Avatar, Badge } from "./ui";
+import { Avatar, Badge, EmergencyBadge } from "./ui";
 
 // ─── Hero SVG slides (illustrations — exempt from UI color tokens) ───────────
 const Slides = [
@@ -199,6 +199,23 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
       {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: "auto", background: color.bg }}>
         <div style={{ padding: "8px 20px 108px" }}>
+          {/* Emergency banner (System 1): badge + wage breakdown for both sides */}
+          {job?.isEmergency && (
+            <div style={{ marginBottom: 10 }}>
+              <EmergencyBadge />
+              {job?.basePay != null && (
+                <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: radius.input,
+                  background: color.dangerSoft, border: "1px solid rgba(248,113,113,0.3)",
+                  fontSize: 12, color: color.textSecondary, lineHeight: 1.6 }}>
+                  שכר בסיס <span style={{ fontWeight: 700, color: color.textPrimary }}>₪{job.basePay}</span>
+                  {" + "}
+                  <span style={{ fontWeight: 700, color: color.danger }}>20% בונוס חירום</span>
+                  {" = "}
+                  <span style={{ fontWeight: 700, color: color.textPrimary }}>₪{payRaw}</span> לשעה
+                </div>
+              )}
+            </div>
+          )}
           <h1 style={{ fontSize: 21, ...font.heading, lineHeight: 1.3, margin: "0 0 4px" }}>{title}</h1>
           <div style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400, marginBottom: 16 }}>משרה זמנית &bull; {employer}, ראשון לציון</div>
 
@@ -322,6 +339,11 @@ export default function JestaJobDetails({ job, onBack, onApply, onOpenProfile })
             <span style={{ fontSize: 12, color: color.textSecondary, fontWeight: 400 }}> / לשעה</span>
           </div>
           <div style={{ fontSize: 11, color: color.textSecondary, fontWeight: 400, marginTop: 2 }}>₪{payRaw * 6} סה״כ למשמרת &bull; היום</div>
+          {job?.isEmergency && job?.basePay != null && (
+            <div style={{ fontSize: 10, color: color.danger, fontWeight: 600, marginTop: 2 }}>
+              ₪{job.basePay} + 20% בונוס חירום
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
             <CheckCircle2 size={11} color={color.success} strokeWidth={2} />
             <span style={{ fontSize: 11, color: color.success, fontWeight: 500 }}>ביטול ללא קנס עד שעתיים לפני</span>

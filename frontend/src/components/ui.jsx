@@ -197,3 +197,134 @@ export function Spinner({ size = 28 }) {
 export function SectionLabel({ children, style }) {
   return <div style={{ ...font.overline, marginBottom: 12, ...style }}>{children}</div>;
 }
+
+// ── Rating stars (System 1) ───────────────────────────────────────────────────
+// rating + total count, e.g. ★★★★☆ 4.2 (13) — used on profiles & applicant cards
+import { Star } from "lucide-react";
+
+export function RatingStars({ rating = 0, count = null, size = 11, showValue = true }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((s) => (
+        <Star key={s} size={size} strokeWidth={1.5}
+          fill={s <= Math.round(rating) ? color.warning : "transparent"}
+          color={s <= Math.round(rating) ? color.warning : color.textMuted} />
+      ))}
+      {showValue && (
+        <span style={{ fontSize: size, color: color.textSecondary, fontWeight: 600, marginInlineStart: 4 }}>
+          {Number(rating ?? 0).toFixed(1)}
+        </span>
+      )}
+      {count != null && (
+        <span style={{ fontSize: size - 1, color: color.textMuted, marginInlineStart: 2 }}>
+          ({count})
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ── Emergency badge (ג'סטה חירום) ────────────────────────────────────────────
+// Styled component — NO emoji in code, per design-system rules. A pulsing dot
+// + Siren icon on a soft danger fill marks emergency gestas everywhere.
+import { Siren, Bell } from "lucide-react";
+
+export function EmergencyBadge({ size = "md", style }) {
+  const compact = size === "sm";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: compact ? 4 : 6,
+      background: color.dangerSoft, color: color.danger,
+      border: `1px solid rgba(248,113,113,0.35)`,
+      borderRadius: radius.chip,
+      padding: compact ? "2px 8px" : "4px 12px",
+      fontSize: compact ? 9 : 11, fontWeight: 700,
+      letterSpacing: "0.04em", whiteSpace: "nowrap",
+      ...style,
+    }}>
+      <span style={{ position: "relative", display: "inline-flex", width: compact ? 6 : 7, height: compact ? 6 : 7 }}>
+        <span style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          background: color.danger, animation: "jesta-pulse 1.4s ease-out infinite",
+        }} />
+        <span style={{ position: "relative", width: "100%", height: "100%", borderRadius: "50%", background: color.danger }} />
+      </span>
+      <Siren size={compact ? 10 : 12} strokeWidth={2} />
+      ג׳סטה חירום
+      <style>{`@keyframes jesta-pulse {
+        0% { transform: scale(1); opacity: 0.8; }
+        70% { transform: scale(2.4); opacity: 0; }
+        100% { transform: scale(2.4); opacity: 0; }
+      }`}</style>
+    </span>
+  );
+}
+
+// ── Job lifecycle status badge (System 4) ────────────────────────────────────
+const JOB_STATUS_META = {
+  OPEN:      { label: "פתוחה",   variant: "primary"  },
+  EMERGENCY: { label: "חירום",   variant: "rejected" },  // red text on soft fill
+  APPROVED:  { label: "אושר עובד", variant: "approved" },
+  COMPLETED: { label: "הושלמה",  variant: "approved" },
+  EXPIRED:   { label: "פג תוקף", variant: "locked"   },
+  CANCELLED: { label: "בוטלה",   variant: "locked"   },
+};
+
+export function JobStatusBadge({ status, style }) {
+  const meta = JOB_STATUS_META[status] ?? JOB_STATUS_META.OPEN;
+  return <Badge variant={meta.variant} style={style}>{meta.label}</Badge>;
+}
+
+// ── Header bell with unread badge (System 3) ─────────────────────────────────
+export function BellButton({ unreadCount = 0, onClick, style }) {
+  return (
+    <motion.button whileTap={{ scale: 0.9 }} onClick={onClick} aria-label="התראות"
+      style={{ ...styles.iconButton, position: "relative", ...style }}>
+      <Bell size={16} color={color.primaryText} strokeWidth={2} />
+      {unreadCount > 0 && (
+        <span style={{
+          position: "absolute", top: -4, insetInlineEnd: -4,
+          minWidth: 16, height: 16, borderRadius: 8, padding: "0 4px",
+          background: color.primary, border: `2px solid ${color.bg}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 9, fontWeight: 700, color: "#fff",
+          fontFamily: font.family, boxSizing: "content-box",
+        }}>
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
+    </motion.button>
+  );
+}
+
+// ── Jesta Score ring (System 1) ───────────────────────────────────────────────
+// 0-100 composite trust score, displayed as a small progress ring.
+export function JestaScoreRing({ score = 0, size = 56, label = true }) {
+  const s = Math.max(0, Math.min(100, Math.round(score ?? 0)));
+  const stroke = Math.max(3, Math.round(size / 14));
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const ringColor = s >= 75 ? color.success : s >= 45 ? color.primaryText : color.warning;
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={color.surface3} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={ringColor} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - s / 100)} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: Math.round(size * 0.3), fontWeight: 700, color: color.textPrimary, lineHeight: 1 }}>
+          {s}
+        </span>
+        {label && size >= 52 && (
+          <span style={{ fontSize: Math.max(7, Math.round(size * 0.13)), color: color.textMuted, fontWeight: 500 }}>
+            JESTA
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}

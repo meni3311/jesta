@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   title         TEXT          NOT NULL,
   description   TEXT,
   pay           FLOAT8        NOT NULL,          -- hourly rate in NIS
+  "requiredWorkers" INT       NOT NULL DEFAULT 1,
   address       TEXT          NOT NULL,
   lat           FLOAT8        NOT NULL,
   lng           FLOAT8        NOT NULL,
@@ -56,6 +57,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   "createdAt"   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   "updatedAt"   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+-- Add requiredWorkers if the table already exists (safe re-run)
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS "requiredWorkers" INT NOT NULL DEFAULT 1;
 
 -- ── applications ──────────────────────────────────────────────────────────────
 
@@ -164,3 +169,149 @@ DO $$ BEGIN
     ON storage.objects FOR INSERT
     WITH CHECK (bucket_id = 'avatars');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================
+--  2026-06-11 — Trust & Rating · Reliability · Pro plan
+--  (identical to 20260611_trust_reliability_pro.sql — kept in
+--   both places so a fresh install needs only this file)
+-- ============================================================
+-- ── New enums ─────────────────────────────────────────────────────────────────
+
+DO $$ BEGIN
+  ALTER TYPE "ApplicationStatus" ADD VALUE IF NOT EXISTS 'NO_SHOW';
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "NotificationType" AS ENUM (
+    'CONFIRM_SHIFT', 'CONFIRM_SHIFT_URGENT', 'JOB_REOPENED',
+    'RATE_REQUEST', 'DIRECT_OFFER', 'OFFER_RESPONSE', 'GENERAL'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "OfferStatus" AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── users: trust, reliability + pro columns ──────────────────────────────────
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS "ratingCount"      INT         NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "jestaScore"       FLOAT8      NOT NULL DEFAULT 60,
+  ADD COLUMN IF NOT EXISTS "showUpCount"      INT         NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "noShowCount"      INT         NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "responseCount"    INT         NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "responseTotalMin" FLOAT8      NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "warningFlag"      BOOLEAN     NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "suspendedUntil"   TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "reviewFlag"       BOOLEAN     NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "isPro"            BOOLEAN     NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "proFeatures"      JSONB       NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS "availability"     JSONB;
+
+-- ── jobs: insurance mode ──────────────────────────────────────────────────────
+
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS "isInsured" BOOLEAN NOT NULL DEFAULT false;
+
+-- ── applications: reliability timestamps ─────────────────────────────────────
+
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS "autoRejected"       BOOLEAN     NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "approvedAt"         TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "confirmedAt"        TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "noShowAt"           TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "completedAt"        TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "preShiftNotifiedAt" TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "urgentNotifiedAt"   TIMESTAMPTZ;
+
+-- ── ratings ───────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS ratings (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  "jobId"      UUID        NOT NULL REFERENCES jobs(id)  ON DELETE CASCADE,
+  "fromUserId" UUID        NOT NULL REFERENCES users(id),
+  "toUserId"   UUID        NOT NULL REFERENCES users(id),
+  score        INT         NOT NULL CHECK (score BETWEEN 1 AND 5),
+  comment      TEXT        CHECK (char_length(comment) <= 100),
+  "createdAt"  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE ("jobId", "fromUserId")          -- one rating per rater per gesta
+);
+CREATE INDEX IF NOT EXISTS idx_ratings_to_user ON ratings ("toUserId");
+
+-- ── notifications ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id              UUID               PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId"        UUID               NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type            "NotificationType" NOT NULL,
+  title           TEXT               NOT NULL,
+  body            TEXT,
+  "jobId"         UUID,              -- loose references (no FK)
+  "applicationId" UUID,
+  "offerId"       UUID,
+  "isRead"        BOOLEAN            NOT NULL DEFAULT false,
+  "createdAt"     TIMESTAMPTZ        NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read    ON notifications ("userId", "isRead");
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications ("userId", "createdAt");
+
+-- ── job_offers (Pro direct hiring) ────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS job_offers (
+  id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  "jobId"       UUID          NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  "employerId"  UUID          NOT NULL REFERENCES users(id),
+  "workerId"    UUID          NOT NULL REFERENCES users(id),
+  status        "OfferStatus" NOT NULL DEFAULT 'PENDING',
+  message       TEXT,
+  "createdAt"   TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  "respondedAt" TIMESTAMPTZ,
+  UNIQUE ("jobId", "workerId")            -- one offer per worker per job
+);
+CREATE INDEX IF NOT EXISTS idx_job_offers_worker_status ON job_offers ("workerId", status);
+
+-- ── RLS (API-only access model — same as all other Jesta tables) ─────────────
+
+ALTER TABLE ratings       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE job_offers    ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+--  2026-06-11 (b) — Final layer: Emergency Gesta · Availability ·
+--  Notification types · Job lifecycle
+--  (identical to migrations/20260611_final_layer.sql)
+-- ============================================================
+
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'NEW_APPLICANT';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'APPLICATION_APPROVED';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'PRE_SHIFT_REMINDER';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'SHIFT_CONFIRMED';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'NO_SHOW_FALLBACK';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'RATING_REQUEST';
+ALTER TYPE "NotificationType" ADD VALUE IF NOT EXISTS 'EMERGENCY_GESTA';
+
+ALTER TABLE jobs
+  ADD COLUMN IF NOT EXISTS "isEmergency" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "basePay"     FLOAT8,
+  ADD COLUMN IF NOT EXISTS "category"    TEXT,
+  ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_jobs_emergency
+  ON jobs ("isEmergency", "createdAt") WHERE "isEmergency" = true;
+
+CREATE TABLE IF NOT EXISTS availability (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId"         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "dayOfWeek"      INT         NOT NULL CHECK ("dayOfWeek" BETWEEN 0 AND 6),
+  "startTime"      TEXT        NOT NULL,
+  "endTime"        TEXT        NOT NULL,
+  "minWage"        FLOAT8      NOT NULL DEFAULT 0,
+  categories       TEXT[]      NOT NULL DEFAULT '{}',
+  "isOpenToOffers" BOOLEAN     NOT NULL DEFAULT true,
+  "createdAt"      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE ("userId", "dayOfWeek", "startTime")
+);
+CREATE INDEX IF NOT EXISTS idx_availability_user ON availability ("userId");
+CREATE INDEX IF NOT EXISTS idx_availability_open ON availability ("isOpenToOffers") WHERE "isOpenToOffers" = true;
+
+ALTER TABLE availability ENABLE ROW LEVEL SECURITY;

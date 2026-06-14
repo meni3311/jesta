@@ -4,7 +4,11 @@ import { MessageCircle, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { color, radius, shadow, font } from "./design-system";
 import { Spinner } from "./components/ui";
 
-import { getJobs, applyToJob }     from "./services/api";
+import {
+  getJobs, getMe, getNotifications, getPendingRatings, toggleProDev,
+  getMyAvailability, markNotificationsReadByTypes,
+} from "./services/api";
+import { supabase }                from "./lib/supabaseClient";
 import AuthScreen                  from "./components/AuthScreen";
 import GuestPromptModal            from "./components/GuestPromptModal";
 import JestaJobsFeed               from "./components/JestaJobsFeed";
@@ -18,6 +22,18 @@ import JestaPublicProfile          from "./components/JestaPublicProfile";
 import JestaChat                   from "./components/JestaChat";
 import JestaChatInbox, { TOTAL_UNREAD } from "./components/JestaChatInbox";
 import JestaProfileSettings        from "./components/JestaProfileSettings";
+import JestaRatingModal            from "./components/JestaRatingModal";
+import JestaNotifications          from "./components/JestaNotifications";
+import JestaOffers                 from "./components/JestaOffers";
+import JestaAvailability           from "./components/JestaAvailability";
+
+// Notification types whose "relevant screen" is the worker's shifts board —
+// visiting it auto-marks them read (System 3)
+const WORKER_SHIFT_NOTIF_TYPES = [
+  "APPLICATION_APPROVED", "PRE_SHIFT_REMINDER", "CONFIRM_SHIFT",
+  "CONFIRM_SHIFT_URGENT", "NO_SHOW_FALLBACK", "JOB_REOPENED",
+];
+const EMPLOYER_NOTIF_TYPES = ["NEW_APPLICANT", "SHIFT_CONFIRMED", "OFFER_RESPONSE"];
 
 // ── Animation variants ────────────────────────────────────────────────────────
 const slide = {
@@ -161,22 +177,20 @@ export default function App() {
   const [jobs,       setJobs]       = useState([]);
   const [jobsStatus, setJobsStatus] = useState("loading");
 
-  useEffect(() => {
-    let cancelled = false;
-    setJobsStatus("loading");
-    getJobs()
-      .then((data) => {
-        if (cancelled) return;
-        setJobs(data.map(normaliseJob));
-        setJobsStatus("ok");
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error("[Jesta] Failed to load jobs:", err);
-        setJobsStatus("error");
-      });
-    return () => { cancelled = true; };
+  const loadJobs = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setJobsStatus("loading");
+    try {
+      const data = await getJobs();
+      setJobs(data.map(normaliseJob));
+      setJobsStatus("ok");
+    } catch (err) {
+      console.error("[Jesta] Failed to load jobs:", err);
+      // A failed silent refresh must not blank out the feed
+      if (!silent) setJobsStatus("error");
+    }
   }, []);
+
+  useEffect(() => { loadJobs(); }, [loadJobs]);
 
   // ── Core app state ─────────────────────────────────────────────────────────
   const [mode, setMode] = useState("worker");
@@ -204,6 +218,113 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // ── Trust & reliability wiring (Systems 1-3) ───────────────────────────────
+  const userId = authState && authState !== "guest" ? authState?.user?.id ?? null : null;
+
+  const [pendingRatings, setPendingRatings] = useState([]);
+  const [ratingOpen,     setRatingOpen]     = useState(false);
+  const [notifOpen,      setNotifOpen]      = useState(false);
+  const [offersOpen,     setOffersOpen]     = useState(false);
+  const [unreadCount,    setUnreadCount]    = useState(0);
+
+  // ── Availability profile (System 2) ──
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
+  const [availabilitySet,  setAvailabilitySet]  = useState(false);
+
+  // ── Repost (System 4): prefill for the create modal ──
+  const [createPrefill, setCreatePrefill] = useState(null);
+
+  /** Refresh the unread-notifications badge */
+  const refreshUnread = useCallback(async () => {
+    try {
+      const { unreadCount: c } = await getNotifications();
+      setUnreadCount(c ?? 0);
+    } catch { /* badge is cosmetic */ }
+  }, []);
+
+  /** Refresh pending ratings; autoOpen pops the rating modal when there are any */
+  const refreshPendingRatings = useCallback(async ({ autoOpen = false } = {}) => {
+    try {
+      const list = await getPendingRatings();
+      setPendingRatings(list);
+      if (autoOpen && list.length > 0) setRatingOpen(true);
+    } catch { /* non-critical */ }
+  }, []);
+
+  // On login / session restore: refresh the full profile (jestaScore, isPro,
+  // flags), the unread badge, and any pending rating prompts.
+  useEffect(() => {
+    if (!userId) { setUnreadCount(0); setPendingRatings([]); return; }
+    getMe().then(handleUserUpdate).catch(() => { /* token may be stale */ });
+    refreshUnread();
+    refreshPendingRatings({ autoOpen: true });
+    const interval = setInterval(refreshUnread, 60_000);
+    return () => clearInterval(interval);
+  }, [userId, handleUserUpdate, refreshUnread, refreshPendingRatings]);
+
+  // Worker: does an availability profile exist? Drives the sidebar CTA vs.
+  // "ערוך זמינות" + green dot (System 2).
+  const userRole = authState && authState !== "guest" ? authState?.user?.role : null;
+  useEffect(() => {
+    if (!userId || userRole !== "WORKER") { setAvailabilitySet(false); return; }
+    getMyAvailability()
+      .then((p) => setAvailabilitySet(!!p.isSet))
+      .catch(() => { /* sidebar simply shows the CTA */ });
+  }, [userId, userRole]);
+
+  // ── Auto-mark notifications read when visiting their screen (System 3) ────
+  const autoMarkRead = useCallback((types) => {
+    markNotificationsReadByTypes(types)
+      .then(() => refreshUnread())
+      .catch(() => { /* cosmetic */ });
+  }, [refreshUnread]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (mode === "worker" && screen === "schedule") autoMarkRead(WORKER_SHIFT_NOTIF_TYPES);
+  }, [userId, mode, screen, autoMarkRead]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (mode === "employer") autoMarkRead(EMPLOYER_NOTIF_TYPES);
+  }, [userId, mode, autoMarkRead]);
+
+  useEffect(() => {
+    if (!userId || !offersOpen) return;
+    autoMarkRead(["DIRECT_OFFER"]);
+  }, [userId, offersOpen, autoMarkRead]);
+
+  // Realtime: the backend broadcasts every persisted notification to the
+  // user's private channel `user:{id}` — badge updates instantly, and a
+  // RATE_REQUEST auto-opens the rating prompt (System 1, flow step 1).
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`user:${userId}`)
+      .on("broadcast", { event: "notification" }, ({ payload }) => {
+        setUnreadCount((c) => c + 1);
+        const t = payload?.notification?.type;
+        if (t === "RATE_REQUEST" || t === "RATING_REQUEST") {
+          refreshPendingRatings({ autoOpen: true });
+        }
+        // Emergency gesta posted nearby (System 1) — silently refresh the
+        // feed so the pinned job appears without a manual reload
+        if (t === "EMERGENCY_GESTA") loadJobs({ silent: true });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, refreshPendingRatings, loadJobs]);
+
+  // DEV ONLY: simulate Pro status (System 3 testing) — backend blocks in prod
+  const handleToggleDevPro = useCallback(async () => {
+    try {
+      const updated = await toggleProDev();
+      handleUserUpdate(updated);
+    } catch (err) {
+      console.warn("[Jesta] dev pro-toggle failed:", err.message);
+    }
+  }, [handleUserUpdate]);
 
   // Check ?verified= param on mount and show a brief banner
   const [verifiedBanner, setVerifiedBanner] = useState(null);  // "success" | "invalid" | "expired"
@@ -241,15 +362,35 @@ export default function App() {
   const goToSchedule = ()    => goTo("schedule", null, 1);
   const goBack       = ()    => goTo("feed", null, -1);
 
-  // "אני בפנים! ⚡" — guarded + fires API (workerId from JWT, no body needed)
-  const goToPending = withAuth(async (job) => {
-    goTo("pending", job, 1);                          // optimistic navigation
-    if (job?.id) {
-      applyToJob(job.id).catch((err) =>
-        console.warn("[Jesta] Apply error (non-fatal):", err.message),
-      );
-    }
+  // "אני בפנים! ⚡" — guarded. The actual POST /jobs/:id/apply happens inside
+  // JestaPending, which owns success / "already applied" / failure states so a
+  // failed DB write is never silently swallowed.
+  const goToPending = withAuth((job) => {
+    goTo("pending", job, 1);
   });
+
+  // Tap on a notification card → its relevant screen (System 3)
+  const handleNotificationNavigate = (n) => {
+    const t = n?.type;
+    if (t === "RATING_REQUEST" || t === "RATE_REQUEST") {
+      refreshPendingRatings({ autoOpen: true });
+      return;
+    }
+    if (t === "DIRECT_OFFER") { setMode("worker"); setOffersOpen(true); return; }
+    if (EMPLOYER_NOTIF_TYPES.includes(t)) { switchMode("employer"); return; }
+    if (WORKER_SHIFT_NOTIF_TYPES.includes(t)) {
+      setMode("worker"); goTo("schedule", null, 1);
+      return;
+    }
+    if (t === "EMERGENCY_GESTA") {
+      setMode("worker");
+      const job = jobs.find((j) => j.id === n.jobId);
+      if (job) goTo("details", job, 1); else goTo("feed", null, -1);
+      return;
+    }
+    // GENERAL & anything else: land on the home view for the current role
+    if (mode === "worker") goTo("feed", null, -1);
+  };
 
   const openChat = withAuth((contract, viewerRole = "worker") =>
     setChatModal({ isOpen: true, contract, viewerRole }),
@@ -282,8 +423,16 @@ export default function App() {
   });
 
   const handleOpenCreate = withAuth(() => {
+    setCreatePrefill(null);
     setSidebarOpen(false);
     setTimeout(() => setCreateModalOpen(true), 280);
+  });
+
+  // Repost (System 4): duplicate an expired/completed/cancelled job as a new
+  // draft — the create modal opens pre-filled, with a fresh date/time.
+  const handleRepost = withAuth((job) => {
+    setCreatePrefill(job);
+    setCreateModalOpen(true);
   });
 
   const pushEnter = dir === -1 ? slide.enterRight : slide.enterLeft;
@@ -324,6 +473,10 @@ export default function App() {
         onOpenProfile={openProfile}
         onOpenChat={(contract) => openChat(contract, "employer")}
         onOpenSidebar={() => setSidebarOpen(true)}
+        onRequestRating={() => refreshPendingRatings({ autoOpen: true })}
+        onRepost={handleRepost}
+        onOpenNotifications={() => withAuth(() => setNotifOpen(true))()}
+        unreadCount={unreadCount}
       />
     </motion.div>
   );
@@ -341,7 +494,9 @@ export default function App() {
             </div>
           ) : (
             <JestaJobsFeed jobs={jobs} onJobSelect={goToDetails} onApply={goToPending}
-              onOpenSidebar={() => setSidebarOpen(true)} onOpenProfile={openProfile} />
+              onOpenSidebar={() => setSidebarOpen(true)} onOpenProfile={openProfile}
+              unreadCount={unreadCount}
+              onOpenNotifications={() => withAuth(() => setNotifOpen(true))()} />
           )}
         </motion.div>
       )}
@@ -427,12 +582,20 @@ export default function App() {
         user={authState?.user ?? null}
         mode={mode}
         onOpenProfileSettings={() => { setSidebarOpen(false); setProfileSettingsOpen(true); }}
+        onOpenNotifications={() => withAuth(() => setNotifOpen(true))()}
+        onOpenOffers={() => withAuth(() => setOffersOpen(true))()}
+        onOpenAvailability={() => withAuth(() => setAvailabilityOpen(true))()}
+        availabilitySet={availabilitySet}
+        onToggleDevPro={handleToggleDevPro}
+        unreadCount={unreadCount}
       />
 
       <JestaCreateModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => { setCreateModalOpen(false); setCreatePrefill(null); }}
         onPublish={handlePublish}
+        user={authState?.user ?? null}
+        prefill={createPrefill}
       />
 
       <JestaPublicProfile
@@ -481,6 +644,58 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Personal offers — full-screen slide-over (System 3) */}
+      <AnimatePresence>
+        {offersOpen && (
+          <motion.div key="offers-screen"
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ type: "tween", ease: [0.32, 0, 0.1, 1], duration: 0.38 }}
+            style={{ position: "absolute", inset: 0, zIndex: 8800 }}>
+            <JestaOffers
+              onBack={() => setOffersOpen(false)}
+              onOpenChat={(contract) => openChat(contract, "worker")}
+              onChanged={refreshUnread}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Availability setup — full-screen slide-over (System 2) */}
+      <AnimatePresence>
+        {availabilityOpen && (
+          <motion.div key="availability-screen"
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ type: "tween", ease: [0.32, 0, 0.1, 1], duration: 0.38 }}
+            style={{ position: "absolute", inset: 0, zIndex: 8900 }}>
+            <JestaAvailability
+              onBack={() => setAvailabilityOpen(false)}
+              onSaved={(profile) => setAvailabilitySet(!!(profile?.isSet ?? true))}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Notification center (System 3) */}
+      <JestaNotifications
+        isOpen={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        onOpenRating={() => refreshPendingRatings({ autoOpen: true })}
+        onChanged={refreshUnread}
+        onNavigate={handleNotificationNavigate}
+      />
+
+      {/* Mutual rating prompt (System 1) */}
+      <JestaRatingModal
+        isOpen={ratingOpen}
+        pending={pendingRatings}
+        onClose={() => { setRatingOpen(false); refreshPendingRatings(); }}
+        onSubmitted={(jobId) => setPendingRatings((p) => p.filter((x) => x.jobId !== jobId))}
+      />
 
       {/* Email verified / invalid banner */}
       <AnimatePresence>

@@ -53,7 +53,15 @@ api.interceptors.response.use(
       window.dispatchEvent(new CustomEvent('jesta:unauthorized'));
     }
 
-    return Promise.reject(new Error(message));
+    // Preserve the HTTP status so callers can branch on it
+    // (e.g. 409 "already applied" is success-like in the apply flow)
+    const normalised = new Error(message);
+    normalised.status = status;
+    // Preserve structured error data (e.g. OVERLAP_LIMIT returns the
+    // conflicting jobs so the UI can show exactly which shifts collide)
+    normalised.code = payload?.code;
+    normalised.data = payload;
+    return Promise.reject(normalised);
   },
 );
 

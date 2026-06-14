@@ -1,30 +1,57 @@
 /**
  * JestaCreateModal — "Create a Jesta" 3-step employer form
+ *
+ * System 1: "ג'סטה חירום" toggle — only available when the shift starts
+ * within 3 hours; the wage is auto-raised by 20% (breakdown shown live).
+ *
+ * Props:
+ *   prefill  optional job-like object (repost flow) — pre-fills every field
+ *            except date/time, which must be chosen anew.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, ChevronLeft, Check, Rocket, Loader2,
   Utensils, Package, PartyPopper, Shirt, Sparkles, Tag, AlertCircle, BarChart3,
+  ShieldCheck, Lock, Siren, Bike, Baby, PawPrint, Warehouse,
 } from "lucide-react";
 import { createJob } from "../services/api";
+import JestaLocationField, { geocodeAddress } from "./JestaLocationField";
 import { color, radius, shadow, font, styles } from "../design-system";
 
+// Aligned with the worker availability taxonomy (System 2 matching):
+// delivery / babysit / events / pets / warehouse map 1:1; the rest match 'other'.
 const CATEGORIES = [
+  { id: "delivery",  label: "שליחויות",   icon: Bike },
+  { id: "babysit",   label: "בייביסיטר",  icon: Baby },
+  { id: "events",    label: "אירועים",    icon: PartyPopper },
+  { id: "pets",      label: "חיות מחמד",  icon: PawPrint },
+  { id: "warehouse", label: "מחסן",       icon: Warehouse },
   { id: "food",      label: "מזון",       icon: Utensils },
   { id: "logistics", label: "לוגיסטיקה",  icon: Package },
-  { id: "events",    label: "אירועים",    icon: PartyPopper },
   { id: "fashion",   label: "אופנה",      icon: Shirt },
   { id: "cleaning",  label: "ניקיון",     icon: Sparkles },
   { id: "sales",     label: "מכירות",     icon: Tag },
 ];
 
-// TODO: replace with real geocoding of the address field (e.g. Google
-// Geocoding API or Nominatim) before launch. Until then jobs get a random
-// coordinate in the Gush Dan area, so map pins are approximate.
-function mockCoords() {
-  return { lat: 31.95 + Math.random() * 0.16, lng: 34.74 + Math.random() * 0.10 };
+const EMERGENCY_WINDOW_MS = 3 * 60 * 60 * 1000;
+const EMERGENCY_FACTOR    = 1.2;
+
+/** Date object from the form's date + "HH:MM" fields (null when incomplete) */
+function formStartDate(data) {
+  if (!data.date || !data.startTime) return null;
+  const d = new Date(`${data.date}T${data.startTime}:00`);
+  return isNaN(d.getTime()) ? null : d;
 }
+
+/** Emergency allowed: shift starts within the next 3 hours (not in the past) */
+function emergencyEligible(data) {
+  const start = formStartDate(data);
+  if (!start) return false;
+  const until = start.getTime() - Date.now();
+  return until <= EMERGENCY_WINDOW_MS && until > -30 * 60 * 1000;
+}
+
 
 const STEPS = [
   { n: 1, label: "פרטי הג׳סטה" },
@@ -137,9 +164,11 @@ function Step2({ data, setData }) {
         </div>
       </div>
       <Field label="כתובת העסק / מיקום *">
-        <input style={inputStyle} placeholder='לדוגמה: "קניון עזריאלי, תל אביב"' value={data.address}
-          onChange={(e) => setData((d) => ({ ...d, address: e.target.value }))}
-          onFocus={focusOn} onBlur={focusOff} />
+        {/* Autocomplete + "use my current location"; stores address AND lat/lng */}
+        <JestaLocationField
+          value={{ address: data.address, lat: data.lat, lng: data.lng }}
+          onChange={({ address, lat, lng }) => setData((d) => ({ ...d, address, lat, lng }))}
+        />
       </Field>
       <Field label="שם העסק / המעסיק">
         <input style={inputStyle} placeholder='לדוגמה: "סינמה סיטי", "משפחת לוי"' value={data.employer}
@@ -150,7 +179,91 @@ function Step2({ data, setData }) {
   );
 }
 
-function Step3({ data, setData }) {
+/** "ג'סטה חירום" (System 1): available only when the shift starts within
+ *  3 hours. Wage is auto-raised 20% server-side; the breakdown is shown live. */
+function EmergencyToggle({ data, setData }) {
+  const eligible = emergencyEligible(data);
+  const on       = data.isEmergency && eligible;
+
+  return (
+    <div style={{ marginTop: 12, borderRadius: radius.card,
+      border: `1px solid ${on ? "rgba(248,113,113,0.45)" : color.borderSubtle}`,
+      background: on ? color.dangerSoft : color.surface2, padding: "14px 16px",
+      opacity: eligible ? 1 : 0.75, transition: "border-color 0.2s, background 0.2s" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={styles.iconBox(36)}>
+          <Siren size={17} color={on ? color.danger : color.textSecondary} strokeWidth={1.75} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: color.textPrimary,
+            display: "flex", alignItems: "center", gap: 6 }}>
+            ג׳סטה חירום
+            {!eligible && <Lock size={12} color={color.textMuted} strokeWidth={2} />}
+          </div>
+          <div style={{ fontSize: 11, color: color.textSecondary, marginTop: 2, lineHeight: 1.5 }}>
+            {eligible
+              ? "השכר יעלה אוטומטית ב-20%, הג׳סטה תוצמד לראש הפיד וג׳סטרים זמינים יקבלו התראה מיידית"
+              : "זמין רק כשמשמרת מתחילה תוך 3 שעות — עדכנו את שעת ההתחלה בשלב הקודם"}
+          </div>
+        </div>
+        <motion.button whileTap={eligible ? { scale: 0.92 } : undefined}
+          onClick={() => eligible && setData((d) => ({ ...d, isEmergency: !d.isEmergency }))}
+          style={{ width: 44, height: 26, borderRadius: 13, border: "none", flexShrink: 0,
+            background: on ? color.danger : color.surface3,
+            cursor: eligible ? "pointer" : "not-allowed", position: "relative",
+            transition: "background 0.2s" }}>
+          <motion.div animate={{ x: on ? -18 : 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20,
+              borderRadius: "50%", background: "#fff" }} />
+        </motion.button>
+      </div>
+    </div>
+  );
+}
+
+/** "ג'סטה מבוטחת" (System 3): Pro-only toggle. On a no-show the system
+ *  auto-runs the fallback replacement flow + flags priority support. */
+function InsuranceToggle({ data, setData, isPro }) {
+  return (
+    <div style={{ marginTop: 16, borderRadius: radius.card,
+      border: `1px solid ${data.isInsured ? color.success : color.borderSubtle}`,
+      background: color.surface2, padding: "14px 16px",
+      opacity: isPro ? 1 : 0.75 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={styles.iconBox(36)}>
+          <ShieldCheck size={17} color={data.isInsured ? color.success : color.primaryText} strokeWidth={1.75} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: color.textPrimary,
+            display: "flex", alignItems: "center", gap: 6 }}>
+            ג׳סטה מבוטחת
+            {!isPro && <Lock size={12} color={color.textMuted} strokeWidth={2} />}
+          </div>
+          <div style={{ fontSize: 11, color: color.textSecondary, marginTop: 2, lineHeight: 1.5 }}>
+            {isPro
+              ? "אם העובד לא מגיע — מחליף אוטומטי + עדיפות בתמיכה"
+              : "שדרג לפרו כדי לבטח את הג׳סטה (מחליף אוטומטי בנו-שואו)"}
+          </div>
+        </div>
+        {/* Switch */}
+        <motion.button whileTap={isPro ? { scale: 0.92 } : undefined}
+          onClick={() => isPro && setData((d) => ({ ...d, isInsured: !d.isInsured }))}
+          style={{ width: 44, height: 26, borderRadius: 13, border: "none", flexShrink: 0,
+            background: data.isInsured ? color.success : color.surface3,
+            cursor: isPro ? "pointer" : "not-allowed", position: "relative",
+            transition: "background 0.2s" }}>
+          <motion.div animate={{ x: data.isInsured ? -18 : 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            style={{ position: "absolute", top: 3, right: 3, width: 20, height: 20,
+              borderRadius: "50%", background: "#fff" }} />
+        </motion.button>
+      </div>
+    </div>
+  );
+}
+
+function Step3({ data, setData, isPro }) {
   const hours = useMemo(() => {
     if (!data.startTime || !data.endTime) return 6;
     const [sh, sm] = data.startTime.split(":").map(Number);
@@ -158,7 +271,12 @@ function Step3({ data, setData }) {
     const diff = (eh * 60 + em) - (sh * 60 + sm);
     return diff > 0 ? Math.round((diff / 60) * 10) / 10 : 6;
   }, [data.startTime, data.endTime]);
-  const total = Math.round(data.hourlyRate * hours);
+
+  // Emergency wage breakdown (System 1): base + 20% bonus, shown live
+  const isEmergencyOn = data.isEmergency && emergencyEligible(data);
+  const bonusPerHour  = isEmergencyOn ? Math.round(data.hourlyRate * EMERGENCY_FACTOR) - data.hourlyRate : 0;
+  const effectiveRate = data.hourlyRate + bonusPerHour;
+  const total = Math.round(effectiveRate * hours);
 
   return (
     <motion.div key="step3" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25, ease: [0.25, 0, 0.2, 1] }}>
@@ -201,6 +319,21 @@ function Step3({ data, setData }) {
           <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>שכר לשעה</span>
           <span style={{ fontSize: 13, color: color.textPrimary, fontWeight: 600 }}>₪{data.hourlyRate}</span>
         </div>
+        {isEmergencyOn && (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: color.danger, fontWeight: 500,
+                display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Siren size={13} strokeWidth={2} /> בונוס חירום (20%)
+              </span>
+              <span style={{ fontSize: 13, color: color.danger, fontWeight: 600 }}>+₪{bonusPerHour}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 500 }}>שכר סופי לשעה</span>
+              <span style={{ fontSize: 13, color: color.textPrimary, fontWeight: 700 }}>₪{effectiveRate}</span>
+            </div>
+          </>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
           <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 400 }}>משך המשמרת</span>
           <span style={{ fontSize: 13, color: color.textPrimary, fontWeight: 600 }}>{hours} שעות</span>
@@ -220,19 +353,44 @@ function Step3({ data, setData }) {
           onChange={(e) => setData((d) => ({ ...d, perks: e.target.value }))}
           onFocus={focusOn} onBlur={focusOff} />
       </Field>
+
+      <EmergencyToggle data={data} setData={setData} />
+      <InsuranceToggle data={data} setData={setData} isPro={isPro} />
     </motion.div>
   );
 }
 
-export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
+const EMPTY_FORM = {
+  title: "", description: "", category: null,
+  date: "", startTime: "", endTime: "",
+  address: "", lat: null, lng: null, hourlyRate: 50, perks: "",
+  isInsured: false, isEmergency: false,
+};
+
+export default function JestaCreateModal({ isOpen, onClose, onPublish, user = null, prefill = null }) {
+  const isPro = !!user?.isPro;
   const [step,       setStep]       = useState(1);
   const [publishing, setPublishing] = useState(false);
   const [error,      setError]      = useState(null);
-  const [data, setData] = useState({
-    title: "", description: "", category: null,
-    date: "", startTime: "", endTime: "",
-    address: "", hourlyRate: 50, perks: "",
-  });
+  const [data, setData] = useState(EMPTY_FORM);
+
+  // Repost flow (System 4): pre-fill everything except date/time — a reposted
+  // job must get a fresh shift window.
+  useEffect(() => {
+    if (!isOpen || !prefill) return;
+    setStep(1);
+    setData({
+      ...EMPTY_FORM,
+      title:       prefill.title ?? "",
+      description: prefill.description ?? "",
+      category:    prefill.category ?? null,
+      address:     prefill.address ?? "",
+      lat:         prefill.lat ?? null,
+      lng:         prefill.lng ?? null,
+      hourlyRate:  Math.round(prefill.basePay ?? prefill.pay ?? 50),
+      perks:       Array.isArray(prefill.perks) ? prefill.perks.join(", ") : (prefill.perks ?? ""),
+    });
+  }, [isOpen, prefill]);
 
   const canProceed = useMemo(() => {
     if (step === 1) return data.title.trim() !== "" && data.category !== null;
@@ -246,7 +404,7 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
   const reset = () => {
     setStep(1);
     setError(null);
-    setData({ title: "", description: "", category: null, date: "", startTime: "", endTime: "", address: "", hourlyRate: 50, perks: "" });
+    setData(EMPTY_FORM);
   };
 
   const handlePublish = async () => {
@@ -254,9 +412,20 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
     setError(null);
     setPublishing(true);
     try {
-      // TODO: data.category is collected in the UI but the jobs table has no
-      // `category` column yet — add one (schema + DTO) to persist it.
-      const { lat, lng } = mockCoords();
+      // Coordinates: set when the employer picked an autocomplete suggestion or
+      // used their current location. If they typed a free-text address instead,
+      // forward-geocode it now — a job must never be saved with fake coordinates.
+      let { lat, lng } = data;
+      if (lat == null || lng == null) {
+        const geo = await geocodeAddress(data.address.trim());
+        if (!geo) {
+          setError("לא הצלחנו לאתר את הכתובת — בחרו כתובת מהרשימה או השתמשו במיקום הנוכחי");
+          setPublishing(false);
+          return;
+        }
+        ({ lat, lng } = geo);
+      }
+
       // Build ISO datetimes from the date + time fields
       const startTime = new Date(`${data.date}T${data.startTime}:00`).toISOString();
       const endTime   = new Date(`${data.date}T${data.endTime}:00`).toISOString();
@@ -265,12 +434,15 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
       const payload = {
         title:       data.title.trim(),
         description: data.description.trim() || undefined,
-        pay:         data.hourlyRate,
+        pay:         data.hourlyRate,          // base wage — server adds the 20% emergency bonus
+        category:    data.category ?? undefined,
         address:     data.address.trim(),
         lat, lng,
         startTime,
         endTime,
         perks,
+        ...(data.isInsured && isPro && { isInsured: true }),
+        ...(data.isEmergency && emergencyEligible(data) && { isEmergency: true }),
       };
 
       const newJob = await createJob(payload);
@@ -317,7 +489,7 @@ export default function JestaCreateModal({ isOpen, onClose, onPublish }) {
               <AnimatePresence mode="wait">
                 {step === 1 && <Step1 key="s1" data={data} setData={setData} />}
                 {step === 2 && <Step2 key="s2" data={data} setData={setData} />}
-                {step === 3 && <Step3 key="s3" data={data} setData={setData} />}
+                {step === 3 && <Step3 key="s3" data={data} setData={setData} isPro={isPro} />}
               </AnimatePresence>
             </div>
 

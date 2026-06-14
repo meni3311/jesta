@@ -34,6 +34,17 @@ export async function createJob(payload) {
 }
 
 /**
+ * Edit an existing job (employer, owner only).
+ * Locked with HTTP 409 once a worker has been APPROVED for the job.
+ * @param {string} jobId
+ * @param {{ title?, description?, pay?, requiredWorkers?, startTime?, endTime? }} payload
+ */
+export async function updateJob(jobId, payload) {
+  const { data } = await api.patch(`/jobs/${jobId}`, payload);
+  return data;
+}
+
+/**
  * One-tap apply ("אני בפנים! ⚡").
  * workerId is read from the JWT on the backend — no body needed.
  * @param {string} jobId
@@ -45,11 +56,30 @@ export async function applyToJob(jobId) {
 
 /**
  * Fetch the logged-in employer's jobs with applicants.
- * Returns Job[] each with an `applications` array of { id, status, worker }.
+ * Returns Job[] each with an `applications` array of { id, status, worker }
+ * and a computed `uiStatus` (OPEN/EMERGENCY/APPROVED/COMPLETED/EXPIRED/CANCELLED).
  * Requires Bearer token (employer role).
  */
 export async function getEmployerJobs() {
   const { data } = await api.get('/jobs/employer');
+  return data;
+}
+
+/**
+ * Real dashboard aggregates (System 4):
+ * { totalPublished, totalCompleted, avgRating, ratingCount, totalPaid }
+ */
+export async function getEmployerStats() {
+  const { data } = await api.get('/jobs/employer/stats');
+  return data;
+}
+
+/**
+ * Employer cancels an OPEN job. 409 once a worker is APPROVED.
+ * @param {string} jobId
+ */
+export async function cancelJob(jobId) {
+  const { data } = await api.patch(`/jobs/${jobId}/cancel`);
   return data;
 }
 
@@ -192,5 +222,212 @@ export async function uploadAvatar(formData) {
  */
 export async function sendVerificationEmail() {
   const { data } = await api.post('/users/send-verification');
+  return data;
+}
+
+// ── Ratings (System 1 — trust & rating) ───────────────────────────────────────
+
+/**
+ * Submit a 1-5 star rating for the other side of a completed gesta.
+ * @param {{ jobId: string, toUserId: string, score: number, comment?: string }} payload
+ */
+export async function submitRating(payload) {
+  const { data } = await api.post('/ratings', payload);
+  return data;
+}
+
+/**
+ * Completed gestas the current user still needs to rate.
+ * Returns [{ jobId, jobTitle, completedAt, toUser: { id, fullName, avatarUrl, role } }]
+ */
+export async function getPendingRatings() {
+  const { data } = await api.get('/ratings/pending');
+  return data;
+}
+
+/**
+ * Ratings received by a user (public — powers profile display).
+ * Returns { items, average, count }.
+ * @param {string} userId
+ */
+export async function getUserRatings(userId) {
+  const { data } = await api.get(`/ratings/user/${userId}`);
+  return data;
+}
+
+// ── Notifications (System 2 — reliability) ────────────────────────────────────
+
+/**
+ * Latest 50 notifications + unread count for the logged-in user.
+ * Returns { items, unreadCount }.
+ */
+export async function getNotifications() {
+  const { data } = await api.get('/notifications');
+  return data;
+}
+
+/** Mark a single notification as read. */
+export async function markNotificationRead(id) {
+  const { data } = await api.patch(`/notifications/${id}/read`);
+  return data;
+}
+
+/** Mark all notifications as read. */
+export async function markAllNotificationsRead() {
+  const { data } = await api.patch('/notifications/read-all');
+  return data;
+}
+
+/**
+ * Auto-mark notifications of the given types as read (System 3) — called when
+ * the user visits the screen those notifications point to.
+ * @param {string[]} types
+ */
+export async function markNotificationsReadByTypes(types) {
+  const { data } = await api.patch('/notifications/read-types', { types });
+  return data;
+}
+
+/**
+ * "אישור הגעה" — worker confirms arrival for an approved shift.
+ * Feeds the response-speed component of the Jesta Score.
+ * @param {string} appId  Application id
+ */
+export async function confirmArrival(appId) {
+  const { data } = await api.post(`/jobs/applications/${appId}/confirm`);
+  return data;
+}
+
+/**
+ * Claim a reopened spot after a JOB_REOPENED notification.
+ * First to claim is auto-approved; 409 means someone else won.
+ * @param {string} appId  Application id
+ */
+export async function claimReopened(appId) {
+  const { data } = await api.post(`/jobs/applications/${appId}/claim`);
+  return data;
+}
+
+/**
+ * Employer marks a gesta as completed for an approved worker.
+ * Triggers Jesta Score update + mutual rating prompts.
+ */
+export async function completeApplication(jobId, appId) {
+  const { data } = await api.patch(`/jobs/${jobId}/applications/${appId}/complete`);
+  return data;
+}
+
+/**
+ * Employer marks an approved worker as no-show.
+ * Triggers strike escalation + the fallback re-invite flow.
+ */
+export async function markNoShow(jobId, appId) {
+  const { data } = await api.patch(`/jobs/${jobId}/applications/${appId}/no-show`);
+  return data;
+}
+
+// ── Pro plan (System 3) ───────────────────────────────────────────────────────
+
+/**
+ * Free-tier blind approval: approve the oldest pending applicant.
+ * @param {string} jobId
+ */
+export async function approveFirstApplicant(jobId) {
+  const { data } = await api.post(`/jobs/${jobId}/approve-first`);
+  return data;
+}
+
+/** Fresh full own profile (jestaScore, isPro, flags, availability). */
+export async function getMe() {
+  const { data } = await api.get('/users/me');
+  return data;
+}
+
+/** Public profile of any user: rating, count, jestaScore + recent ratings. */
+export async function getPublicProfile(userId) {
+  const { data } = await api.get(`/users/${userId}/public`);
+  return data;
+}
+
+/**
+ * Worker sets their LEGACY direct-hiring availability card (jsonb).
+ * The weekly grid (System 2) uses saveAvailability() below.
+ * @param {{ open: boolean, days?: string[], hours?: string, note?: string }} payload
+ */
+export async function updateAvailability(payload) {
+  const { data } = await api.patch('/users/availability', payload);
+  return data;
+}
+
+/**
+ * The worker's own availability profile (System 2).
+ * Returns { isSet, slots: [{dayOfWeek,startTime,endTime}], minWage, categories, isOpenToOffers }.
+ */
+export async function getMyAvailability() {
+  const { data } = await api.get('/users/availability');
+  return data;
+}
+
+/**
+ * Replace the worker's full availability profile (System 2).
+ * @param {{ slots: {dayOfWeek:number,startTime:string,endTime:string}[],
+ *           minWage: number, categories: string[], isOpenToOffers: boolean }} payload
+ */
+export async function saveAvailability(payload) {
+  const { data } = await api.put('/users/availability', payload);
+  return data;
+}
+
+/**
+ * Pro-only: browse available workers, best Jesta Score first.
+ * Pass a jobId to match against that job (System 2) — each card then carries
+ * `matchingSlots` (availability blocks overlapping the job's time window).
+ * @param {string} [jobId]
+ */
+export async function getAvailableWorkers(jobId) {
+  const { data } = await api.get('/users/available-workers', {
+    params: jobId ? { jobId } : {},
+  });
+  return data;
+}
+
+/** DEV ONLY: toggle Pro status to test gating (blocked in production). */
+export async function toggleProDev() {
+  const { data } = await api.patch('/users/dev/pro-toggle');
+  return data;
+}
+
+// ── Direct offers (System 3 — Pro direct hiring) ──────────────────────────────
+
+/**
+ * Pro employer sends a personal job offer to a worker.
+ * @param {{ jobId: string, workerId: string, message?: string }} payload
+ */
+export async function sendOffer(payload) {
+  const { data } = await api.post('/offers', payload);
+  return data;
+}
+
+/** Worker's incoming offers ("הצעות אישיות"). */
+export async function getMyOffers() {
+  const { data } = await api.get('/offers/me');
+  return data;
+}
+
+/** Employer's outgoing offers. */
+export async function getSentOffers() {
+  const { data } = await api.get('/offers/sent');
+  return data;
+}
+
+/** Worker accepts a direct offer → instant approval + chat. */
+export async function acceptOffer(offerId) {
+  const { data } = await api.patch(`/offers/${offerId}/accept`);
+  return data;
+}
+
+/** Worker declines a direct offer. */
+export async function declineOffer(offerId) {
+  const { data } = await api.patch(`/offers/${offerId}/decline`);
   return data;
 }

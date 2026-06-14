@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n_container
+    restart: always
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_storage:/home/node/.n8n
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_container
+    restart: always
+    ports:
+      - "4040:4040"
+    environment:
+      # חובה: שים פה את ה-Authtoken שקיבלת מהאתר של ngrok
+      - NGROK_AUTHTOKEN=3EyNNonNFX8e9ZiRlTBB33ObPgq_4VYZBVm7LRPAmW6XoXdyS
+    # הפקודה הבאה אומרת ל-ngrok להקשיב לפורט 5678 של סרוויס ה-n8n באותה הרשת
+    command: "http n8n:5678"
+    depends_on:
+      - n8n
+
+volumes:
+  n8n_storage:

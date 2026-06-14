@@ -1,47 +1,73 @@
 /**
  * JestaPublicProfile — Modal overlay for worker or employer public profile
  *
+ * When userData.id is present, fetches the live public profile
+ * (GET /users/:id/public): rating_avg + count, Jesta Score and recent
+ * ratings — so every profile shows real trust data (System 1).
+ *
  * Props:
  *   isOpen    boolean
  *   onClose   fn
  *   type      "worker" | "employer"
- *   userData  object (optional overrides)
+ *   userData  object (optional overrides; id triggers the live fetch)
  */
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Star, Zap, Briefcase, Trophy } from "lucide-react";
+import { X, Zap, Briefcase, Trophy, Loader2, AlertTriangle } from "lucide-react";
+import { getPublicProfile } from "../services/api";
 import { color, radius, font, styles } from "../design-system";
-import { Avatar, Badge, SheetHandle } from "./ui";
+import { Avatar, Badge, SheetHandle, RatingStars, JestaScoreRing } from "./ui";
 
-// Neutral fallbacks only — real values come from the `userData` prop
-// (worker: { name, rating, completedJobs, id } from ApplicantCard, etc.)
+// Neutral fallbacks only — real values come from the live fetch / props
 const WORKER_DEFAULTS = {
-  name: "ג׳סטר",
-  rating: 0,
-  shifts: 0,
-  level: "ג׳סטר חדש",
-  city: "",
-  bio: "",
-  badges: [],
+  name: "ג׳סטר", rating: 0, ratingCount: 0, jestaScore: null,
+  shifts: 0, level: "ג׳סטר חדש", city: "", bio: "", badges: [],
+};
+const EMPLOYER_DEFAULTS = {
+  name: "מעסיק", business: "", rating: 0, ratingCount: 0, jestaScore: null,
+  totalShifts: 0, level: "מעסיק", city: "", bio: "", badges: [],
 };
 
-const EMPLOYER_DEFAULTS = {
-  name: "מעסיק",
-  business: "",
-  rating: 0,
-  totalShifts: 0,
-  level: "מעסיק",
-  city: "",
-  bio: "",
-  badges: [],
-};
+function timeAgo(iso) {
+  const d = Math.round((Date.now() - new Date(iso)) / 86400000);
+  if (d < 1)  return "היום";
+  if (d < 30) return `לפני ${d} ימים`;
+  return new Date(iso).toLocaleDateString("he-IL", { month: "short", year: "numeric" });
+}
 
 export default function JestaPublicProfile({ isOpen, onClose, type = "worker", userData }) {
   const isWorker = type === "worker";
   const defaults = isWorker ? WORKER_DEFAULTS : EMPLOYER_DEFAULTS;
+
+  const [live,    setLive]    = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Live fetch whenever the sheet opens with a real user id
+  useEffect(() => {
+    if (!isOpen || !userData?.id) { setLive(null); return; }
+    let cancelled = false;
+    setLoading(true);
+    getPublicProfile(userData.id)
+      .then((data) => { if (!cancelled) setLive(data); })
+      .catch(() => { /* fall back to the passed-in data */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, userData?.id]);
+
   const data = { ...defaults, ...userData };
-  // Map common backend field names to the shape this UI expects
-  if (userData?.fullName && !userData?.name)        data.name   = userData.fullName;
-  if (userData?.completedJobs != null)              data.shifts = userData.completedJobs;
+  if (userData?.fullName && !userData?.name)  data.name   = userData.fullName;
+  if (userData?.completedJobs != null)        data.shifts = userData.completedJobs;
+  if (live) {
+    data.name        = live.fullName ?? data.name;
+    data.avatarUrl   = live.avatarUrl ?? data.avatarUrl;
+    data.rating      = live.rating ?? data.rating;
+    data.ratingCount = live.ratingCount ?? data.ratingCount;
+    data.jestaScore  = live.jestaScore ?? data.jestaScore;
+    data.shifts      = live.completedJobs ?? data.shifts;
+    data.totalShifts = live.completedJobs ?? data.totalShifts;
+    data.warningFlag = live.warningFlag;
+  }
+  const recentRatings = live?.recentRatings ?? [];
 
   return (
     <AnimatePresence>
@@ -76,31 +102,39 @@ export default function JestaPublicProfile({ isOpen, onClose, type = "worker", u
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 32px" }}>
-              {/* Avatar + name */}
+              {/* Avatar + name + Jesta Score */}
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
                 <Avatar size={72} employer={!isWorker} src={data.avatarUrl} surface={color.surface1} />
-                <div>
-                  <div style={{ fontSize: 20, ...font.heading }}>{data.name}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 20, ...font.heading, display: "flex", alignItems: "center", gap: 8 }}>
+                    {data.name}
+                    {loading && <Loader2 size={14} color={color.textMuted}
+                      style={{ animation: "spin 0.7s linear infinite" }} />}
+                  </div>
                   {!isWorker && data.business && (
                     <div style={{ fontSize: 13, color: color.primaryText, fontWeight: 600, marginTop: 2 }}>{data.business}</div>
                   )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8 }}>
-                    {[1,2,3,4,5].map(s => (
-                      <Star key={s} size={12}
-                        fill={s <= Math.round(data.rating) ? color.warning : "transparent"}
-                        color={s <= Math.round(data.rating) ? color.warning : color.textMuted} />
-                    ))}
-                    <span style={{ fontSize: 13, color: color.textSecondary, fontWeight: 600, marginInlineStart: 4 }}>{data.rating}</span>
+                  <div style={{ marginTop: 8 }}>
+                    <RatingStars rating={data.rating} count={data.ratingCount} size={12} />
                   </div>
+                  {data.warningFlag && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6,
+                      fontSize: 10, fontWeight: 600, color: color.warning,
+                      background: color.warningSoft, borderRadius: radius.chip, padding: "3px 10px" }}>
+                      <AlertTriangle size={11} strokeWidth={2} /> אזהרת אי-הגעה
+                    </div>
+                  )}
                 </div>
+                {/* Jesta Score — displayed prominently (System 1) */}
+                {data.jestaScore != null && <JestaScoreRing score={data.jestaScore} size={62} />}
               </div>
 
               {/* Stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
                 {[
                   { label: isWorker ? "משמרות" : "ג׳סטות", value: isWorker ? data.shifts : data.totalShifts },
-                  { label: "דירוג", value: data.rating },
-                  { label: "עיר", value: data.city || "—" },
+                  { label: "דירוג", value: `${Number(data.rating ?? 0).toFixed(1)} (${data.ratingCount ?? 0})` },
+                  { label: "Jesta Score", value: data.jestaScore != null ? Math.round(data.jestaScore) : "—" },
                 ].map((s, i) => (
                   <div key={i} style={{ background: color.surface2, borderRadius: radius.input,
                     padding: "12px 8px", textAlign: "center",
@@ -128,17 +162,37 @@ export default function JestaPublicProfile({ isOpen, onClose, type = "worker", u
                 </div>
               )}
 
-              {/* CTA */}
-              {/* TODO: direct job offers / direct contact require a backend
-                  endpoint (e.g. POST /offers) that doesn't exist yet —
-                  disabled until then rather than pretending to work. */}
+              {/* Recent ratings (System 1) */}
+              {recentRatings.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ ...font.overline, marginBottom: 10 }}>דירוגים אחרונים</div>
+                  {recentRatings.map((r) => (
+                    <div key={r.id} style={{ background: color.surface2, borderRadius: radius.input,
+                      border: `1px solid ${color.borderSubtle}`, padding: "10px 12px", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: color.textPrimary }}>
+                          {r.fromUser?.fullName ?? "משתמש"}
+                        </span>
+                        <RatingStars rating={r.score} size={10} showValue={false} />
+                      </div>
+                      {r.comment && (
+                        <div style={{ fontSize: 12, color: color.textSecondary, lineHeight: 1.5 }}>״{r.comment}״</div>
+                      )}
+                      <div style={{ fontSize: 10, color: color.textMuted, marginTop: 4 }}>{timeAgo(r.createdAt)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* CTA — direct offers happen through גיוס ישיר (Pro, System 3) */}
               <motion.button disabled
                 style={{ ...styles.buttonSecondary, marginTop: 4,
                   color: color.textMuted, cursor: "not-allowed" }}>
                 {isWorker
-                  ? <><Zap size={16} strokeWidth={1.75} /> שלח הצעת עבודה (בקרוב)</>
+                  ? <><Zap size={16} strokeWidth={1.75} /> הצעה ישירה — דרך ״גיוס ישיר״ בדאשבורד (פרו)</>
                   : <><Briefcase size={16} strokeWidth={1.75} /> צור קשר עם המעסיק (בקרוב)</>}
               </motion.button>
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           </motion.div>
         </motion.div>

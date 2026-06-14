@@ -26,7 +26,7 @@ import {
   SlidersHorizontal, Star, X as IconX, ChevronLeft, Briefcase, Banknote,
 } from "lucide-react";
 import { color, radius, shadow, font, styles } from "../design-system";
-import { Avatar, Badge, EmptyState as DSEmptyState, SheetHandle } from "./ui";
+import { Avatar, Badge, EmptyState as DSEmptyState, SheetHandle, EmergencyBadge, BellButton } from "./ui";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SNAP       = { OPEN: 150, PEEK: 490, MIN: 690 };
@@ -53,13 +53,20 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 // ─── Leaflet price icon ───────────────────────────────────────────────────────
-function createPriceIcon(pay, isActive, isNew = false) {
-  const bg     = isActive ? color.primaryHover : color.surface2;
-  const text   = isActive ? "#ffffff" : color.textPrimary;
-  const border = isActive ? color.primary : color.borderStrong;
-  const boxShadow = isActive
+function createPriceIcon(pay, isActive, isNew = false, isEmergency = false) {
+  let bg     = isActive ? color.primaryHover : color.surface2;
+  let text   = isActive ? "#ffffff" : color.textPrimary;
+  let border = isActive ? color.primary : color.borderStrong;
+  let boxShadow = isActive
     ? "0 0 20px rgba(124,58,237,0.45), 0 4px 12px rgba(0,0,0,0.5)"
     : "0 2px 8px rgba(0,0,0,0.5)";
+  // Emergency pins (System 1): red-bordered + glow so they pop on the map
+  if (isEmergency) {
+    border    = color.danger;
+    text      = isActive ? "#ffffff" : color.danger;
+    boxShadow = "0 0 18px rgba(248,113,113,0.5), 0 4px 12px rgba(0,0,0,0.5)";
+    if (isActive) bg = "#b91c1c";
+  }
   const newAnim = isNew
     ? "@keyframes jp{0%{transform:scale(0) translateY(-12px);opacity:0}60%{transform:scale(1.15) translateY(2px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}"
     : "";
@@ -119,7 +126,8 @@ function LiveMap({ jobs, activePin, onPinClick, visibleJobIds }) {
     jobs.forEach((job) => {
       if (markersRef.current[job.id]) return;
       const marker = window.L.marker([job.lat, job.lng], {
-        icon: createPriceIcon(job.pay, activePin === job.id, !!job.isNew),
+        icon: createPriceIcon(job.pay, activePin === job.id, !!job.isNew, !!job.isEmergency),
+        ...(job.isEmergency && { zIndexOffset: 1000 }),   // emergency pins on top
       }).addTo(mapRef.current);
       marker.on("click", () => onPinClick(job));
       markersRef.current[job.id] = marker;
@@ -130,7 +138,9 @@ function LiveMap({ jobs, activePin, onPinClick, visibleJobIds }) {
 
   useEffect(() => {
     jobs.forEach((job) => {
-      markersRef.current[job.id]?.setIcon(createPriceIcon(job.pay, activePin === job.id));
+      markersRef.current[job.id]?.setIcon(
+        createPriceIcon(job.pay, activePin === job.id, false, !!job.isEmergency),
+      );
     });
     if (activePin && mapRef.current) {
       const a = jobs.find((j) => j.id === activePin);
@@ -267,7 +277,9 @@ function JobCard({ job, isActive, onJobSelect, onViewEmployer }) {
       style={{
         ...styles.card,
         cursor: "pointer",
-        borderColor: isActive ? color.primary : color.borderSubtle,
+        borderColor: job.isEmergency
+          ? "rgba(248,113,113,0.45)"
+          : isActive ? color.primary : color.borderSubtle,
         padding: 16,
         position: "relative",
         overflow: "hidden",
@@ -276,7 +288,8 @@ function JobCard({ job, isActive, onJobSelect, onViewEmployer }) {
     >
       {/* Active accent — 3px solid primary on the leading edge */}
       {isActive && (
-        <div style={{ position: "absolute", top: 0, insetInlineStart: 0, width: 3, height: "100%", background: color.primary }} />
+        <div style={{ position: "absolute", top: 0, insetInlineStart: 0, width: 3, height: "100%",
+          background: job.isEmergency ? color.danger : color.primary }} />
       )}
 
       <div style={{ display: "flex", gap: 12 }}>
@@ -288,9 +301,17 @@ function JobCard({ job, isActive, onJobSelect, onViewEmployer }) {
               style={{ ...font.overline, color: color.primaryText, cursor: "pointer" }}>
               {job.employer}
             </motion.div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: color.textPrimary, lineHeight: 1, flexShrink: 0 }}>
-              {job.pay}
-              <span style={{ fontSize: 11, fontWeight: 400, color: color.textSecondary }}> / שעה</span>
+            <div style={{ textAlign: "left", flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: color.textPrimary, lineHeight: 1 }}>
+                {job.pay}
+                <span style={{ fontSize: 11, fontWeight: 400, color: color.textSecondary }}> / שעה</span>
+              </div>
+              {/* Emergency wage breakdown (System 1): original + bonus */}
+              {job.isEmergency && job.basePay != null && (
+                <div style={{ fontSize: 10, color: color.danger, fontWeight: 600, marginTop: 3 }}>
+                  ₪{job.basePay} + 20% בונוס חירום
+                </div>
+              )}
             </div>
           </div>
 
@@ -298,6 +319,11 @@ function JobCard({ job, isActive, onJobSelect, onViewEmployer }) {
           <div style={{ fontSize: 16, ...font.heading, lineHeight: 1.3, marginBottom: 8 }}>
             {job.title}
           </div>
+
+          {/* Emergency badge (System 1) — styled component, pinned jobs */}
+          {job.isEmergency && (
+            <div style={{ marginBottom: 8 }}><EmergencyBadge size="sm" /></div>
+          )}
 
           {/* New badge */}
           {job.isNew && (
@@ -492,7 +518,10 @@ function FiltersBar({ filters, setFilters }) {
 }
 
 // ─── Main feed ────────────────────────────────────────────────────────────────
-export default function JestaJobsFeed({ jobs = [], onJobSelect, onApply, onOpenSidebar, onOpenProfile }) {
+export default function JestaJobsFeed({
+  jobs = [], onJobSelect, onApply, onOpenSidebar, onOpenProfile,
+  unreadCount = 0, onOpenNotifications,
+}) {
   const [activePin, setActivePin] = useState(jobs[0]?.id ?? 1);
   const [filters, setFilters]     = useState(FILTER_DEFAULTS);
   const cardRefs                  = useRef({});
@@ -500,13 +529,19 @@ export default function JestaJobsFeed({ jobs = [], onJobSelect, onApply, onOpenS
 
   const filteredJobs = useMemo(() => {
     const kw = filters.keyword.toLowerCase().trim();
-    return jobs.filter((job) => {
+    const visible = jobs.filter((job) => {
       if (kw && !job.title.toLowerCase().includes(kw) && !job.employer.toLowerCase().includes(kw)) return false;
       if (haversine(USER_LAT, USER_LNG, job.lat, job.lng) > filters.radius) return false;
       if (job.payRaw < filters.minWage) return false;
       if ((job.employerRating ?? 5) < filters.minRating) return false;
       return true;
     });
+    // Feed priority (System 1): emergency gestas pinned first (newest first),
+    // then the rest in the order the backend sent (distance / recency).
+    const emergency = visible.filter((j) => j.isEmergency)
+      .sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0));
+    const regular = visible.filter((j) => !j.isEmergency);
+    return [...emergency, ...regular];
   }, [jobs, filters]);
 
   const visibleJobIds = useMemo(() => new Set(filteredJobs.map((j) => j.id)), [filteredJobs]);
@@ -542,7 +577,13 @@ export default function JestaJobsFeed({ jobs = [], onJobSelect, onApply, onOpenS
             <span style={{ fontSize: 24, ...font.heading }}>גסטה</span>
             <Zap size={16} color={color.primaryText} strokeWidth={2} />
           </div>
-          <Avatar size={36} online onClick={onOpenSidebar} surface={color.bg} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Notification bell (System 3) */}
+            {onOpenNotifications && (
+              <BellButton unreadCount={unreadCount} onClick={onOpenNotifications} />
+            )}
+            <Avatar size={36} online onClick={onOpenSidebar} surface={color.bg} />
+          </div>
         </div>
 
         <div style={{ pointerEvents: "auto" }}>
