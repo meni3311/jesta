@@ -19,6 +19,8 @@ const PROFILE_SELECT = {
   showUpCount: true, noShowCount: true,
   warningFlag: true, suspendedUntil: true, reviewFlag: true,
   isPro: true, proFeatures: true, availability: true,
+  coinsBalance: true, proExpiresAt: true, subscriptionStatus: true,
+  referralCode: true,
   createdAt: true,
 } as const;
 

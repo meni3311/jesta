@@ -3,7 +3,9 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true preserves the unparsed body on `req.rawBody`, required for
+  // verifying Stripe webhook signatures (POST /api/payments/webhook).
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // ── Global validation pipe (class-validator) ────────────────────────────
   app.useGlobalPipes(

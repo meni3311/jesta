@@ -32,6 +32,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import JestaEditJobModal from "./JestaEditJobModal";
 import JestaWorkerBrowse from "./JestaWorkerBrowse";
+import CoinBalance from "./CoinBalance";
 import { color, radius, font, styles } from "../design-system";
 import {
   Avatar, Badge, EmptyState, PrimaryButton, SectionLabel, RatingStars,
@@ -487,6 +488,7 @@ export default function EmployerDashboard({
   onRequestRating,
   onRepost,
   onOpenNotifications,
+  onSessionRefresh,
   unreadCount = 0,
 }) {
   const [jobs,       setJobs]       = useState([]);
@@ -604,7 +606,13 @@ export default function EmployerDashboard({
               </div>
               <div style={{ fontSize: 21, ...font.heading }}>דאשבורד מעסיק</div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {/* Coin balance + buy coins + Pro upgrade */}
+              <CoinBalance
+                initialBalance={user?.coinsBalance ?? 0}
+                initialIsPro={isPro}
+                onProChange={onSessionRefresh}
+              />
               {/* Notification bell (System 3) */}
               {onOpenNotifications && (
                 <BellButton unreadCount={unreadCount} onClick={onOpenNotifications} />

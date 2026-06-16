@@ -6,10 +6,12 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScoreService } from '../score/score.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CoinsService } from '../coins/coins.service';
 import { CreateJobDto }  from './dto/create-job.dto';
 import { QueryJobsDto }  from './dto/query-jobs.dto';
 import { UpdateJobDto }  from './dto/update-job.dto';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 // NOTE: queries touching models/columns from the 2026-06-11 migration go
 // through `this.prisma.db` (see PrismaService.db) because the generated
@@ -81,6 +83,7 @@ export class JobsService {
     private readonly config: ConfigService,
     private readonly score: ScoreService,
     private readonly notifications: NotificationsService,
+    private readonly coins: CoinsService,
   ) {
     // Service-role client used ONLY to broadcast realtime events
     // (same pattern as ChatService). The employer dashboard subscribes
@@ -272,16 +275,30 @@ export class JobsService {
       throw new ForbiddenException('Only employers can post jobs');
     }
 
-    // Insurance mode ("ג'סטה מבוטחת") is a Pro feature — enforced server-side.
-    if (dto.isInsured) {
+    // Free-tier weekly posting limit (max 2 jobs / ISO week). Pro = unlimited.
+    // Throws 403 WEEKLY_LIMIT_REACHED with a clear Hebrew message.
+    await this.coins.assertCanPostJob(employerId);
+
+    const requiredWorkers = dto.requiredWorkers ?? 1;
+
+    // Pro-gated features (insurance mode + multi-worker posting) — enforced
+    // server-side so the API can't be inspected to bypass the paywall.
+    if (dto.isInsured || requiredWorkers > 1) {
       const employer = await this.prisma.db.user.findUnique({
         where: { id: employerId },
         select: { isPro: true },
       });
-      if (!employer?.isPro) {
+      if (dto.isInsured && !employer?.isPro) {
         throw new ForbiddenException('ג׳סטה מבוטחת זמינה למנויי פרו בלבד');
       }
+      if (requiredWorkers > 1 && !employer?.isPro) {
+        throw new ForbiddenException('פרסום מרובה-עובדים זמין למנויי פרו בלבד');
+      }
     }
+
+    // Multi-worker jobs get a shared invite token so workers can join the
+    // shift directly from a link (POST /jobs/join/:inviteToken).
+    const inviteToken = requiredWorkers > 1 ? randomUUID() : null;
 
     const startTime = new Date(dto.startTime);
     const endTime   = new Date(dto.endTime);
@@ -313,6 +330,8 @@ export class JobsService {
         basePay,
         startTime,
         endTime,
+        requiredWorkers,
+        inviteToken,
         perks:       dto.perks ?? [],
         isInsured:   dto.isInsured ?? false,
         isEmergency: dto.isEmergency ?? false,
@@ -324,6 +343,14 @@ export class JobsService {
         _count:   { select: { applications: true } },
       },
     });
+
+    // First-job milestone + referral payout (both sides get 20 coins). No-ops
+    // after the first job. Awaited but guarded — must never lose the job.
+    try {
+      await this.coins.onJobPosted(employerId);
+    } catch (err: any) {
+      this.logger.warn(`referral payout check failed for ${employerId}: ${err.message}`);
+    }
 
     // Fanout AFTER the job is persisted — a notification failure must never
     // lose the job itself.
@@ -359,7 +386,7 @@ export class JobsService {
       },
       select: { workerId: true },
     });
-    const busyIds: string[] = [...new Set(busy.map((b: any) => b.workerId as string))];
+    const busyIds: string[] = [...new Set(busy.map((b: any) => b.workerId as string))] as string[];
 
     const candidates = await this.prisma.db.user.findMany({
       where: {
@@ -520,7 +547,16 @@ export class JobsService {
       throw new ConflictException('Application is already ' + application.status);
     }
 
-    const [updatedApp, , , chat] = await this.prisma.db.$transaction([
+    // Multi-worker jobs (Pro): the position stays open until ALL required slots
+    // are approved. Only when the last slot is filled do we close the job and
+    // reject the remaining pending applicants.
+    const requiredWorkers = job.requiredWorkers ?? 1;
+    const approvedCount = await this.prisma.db.application.count({
+      where: { jobId, status: 'APPROVED' },
+    });
+    const willBeFilled = approvedCount + 1 >= requiredWorkers;
+
+    const ops: any[] = [
       this.prisma.db.application.update({
         where: { id: appId },
         // approvedAt anchors the response-speed component of the Jesta Score
@@ -530,17 +566,6 @@ export class JobsService {
           job:    { select: { id: true, title: true } },
         },
       }),
-      this.prisma.db.job.update({
-        where: { id: jobId },
-        data:  { isActive: false },
-      }),
-      // Position filled — reject all other pending applications on this job
-      // so workers aren't left waiting forever. autoRejected=true keeps them
-      // eligible for the no-show fallback re-invite.
-      this.prisma.db.application.updateMany({
-        where: { jobId, id: { not: appId }, status: 'PENDING' },
-        data:  { status: 'REJECTED', autoRejected: true },
-      }),
       this.prisma.db.chat.create({
         data: { applicationId: appId, employerId, workerId: application.workerId },
         include: {
@@ -548,7 +573,22 @@ export class JobsService {
           worker:   { select: { id: true, fullName: true, avatarUrl: true } },
         },
       }),
-    ]);
+    ];
+    if (willBeFilled) {
+      // All slots taken — close the job and reject other pendings. autoRejected
+      // keeps them eligible for the no-show fallback re-invite.
+      ops.push(
+        this.prisma.db.job.update({
+          where: { id: jobId },
+          data:  { isActive: false },
+        }),
+        this.prisma.db.application.updateMany({
+          where: { jobId, id: { not: appId }, status: 'PENDING' },
+          data:  { status: 'REJECTED', autoRejected: true },
+        }),
+      );
+    }
+    const [updatedApp, chat] = await this.prisma.db.$transaction(ops);
 
     this.notifications
       .notify(application.workerId, {
@@ -649,6 +689,15 @@ export class JobsService {
         jobId: app.job.id, applicationId: appId,
       })
       .catch(() => { /* fire-and-forget */ });
+
+    // Slot filled → charge the employer (20 free / 18 Pro), idempotent.
+    // A charge failure must never block the worker's confirmation, so we
+    // swallow errors here (the slot stays un-charged and can be retried).
+    try {
+      await this.coins.chargeForFilledSlot(appId);
+    } catch (err: any) {
+      this.logger.warn(`coin charge failed for application ${appId}: ${err.message}`);
+    }
 
     return updated;
   }
@@ -923,6 +972,103 @@ export class JobsService {
     }).catch(() => { /* fire-and-forget */ });
 
     return { application: updated, chat };
+  }
+
+  // GET /jobs/invite/:token — public preview of a shared multi-worker shift
+  async getByInviteToken(token: string) {
+    const job = await this.prisma.db.job.findUnique({
+      where: { inviteToken: token },
+      include: { employer: { select: EMPLOYER_SELECT } },
+    });
+    if (!job) throw new NotFoundException('קישור ההזמנה אינו תקין');
+    return {
+      ...job,
+      slotsLeft: Math.max(0, (job.requiredWorkers ?? 1) - (job.filledSlots ?? 0)),
+    };
+  }
+
+  // POST /jobs/join/:token — worker joins a multi-worker shift via invite link.
+  // Joining is an immediate commitment: the application is created APPROVED and
+  // confirmed, which fills a slot and charges the employer (18 Pro / 20 free).
+  async joinViaInvite(token: string, workerId: string, role: string) {
+    if (role !== 'WORKER') {
+      throw new ForbiddenException('רק עובדים יכולים להצטרף למשמרת');
+    }
+    const job = await this.prisma.db.job.findUnique({ where: { inviteToken: token } });
+    if (!job)               throw new NotFoundException('קישור ההזמנה אינו תקין');
+    if (!job.isActive)      throw new ConflictException('המשמרת כבר לא פתוחה להצטרפות');
+
+    const requiredWorkers = job.requiredWorkers ?? 1;
+    const approvedCount = await this.prisma.db.application.count({
+      where: { jobId: job.id, status: 'APPROVED' },
+    });
+    if (approvedCount >= requiredWorkers) {
+      throw new ConflictException('כל המשבצות במשמרת כבר מאוישות');
+    }
+
+    const worker = await this.prisma.db.user.findUnique({
+      where: { id: workerId },
+      select: { suspendedUntil: true, reviewFlag: true },
+    });
+    if (!worker) throw new NotFoundException('Worker not found');
+    this.assertWorkerInGoodStanding(worker);
+
+    const existing = await this.prisma.db.application.findUnique({
+      where: { jobId_workerId: { jobId: job.id, workerId } },
+    });
+    if (existing) throw new ConflictException('כבר הצטרפת למשמרת הזו');
+
+    // Overlap guard (same rule as a normal application)
+    const conflicts = await this.findApprovedOverlaps(workerId, job.startTime, job.endTime);
+    if (conflicts.length >= MAX_OVERLAPPING_APPROVED) {
+      throw new ConflictException({
+        message: `לא ניתן להצטרף — יש לך כבר ${conflicts.length} משמרות מאושרות שחופפות בזמן`,
+        code: 'OVERLAP_LIMIT',
+        conflicts,
+      });
+    }
+
+    const now = new Date();
+    const application = await this.prisma.db.application.create({
+      data: {
+        jobId: job.id,
+        workerId,
+        status: 'APPROVED',
+        approvedAt: now,
+        confirmedAt: now,    // joining via link = confirmed arrival
+      },
+      include: {
+        job:    { select: { id: true, title: true, employerId: true } },
+        worker: { select: WORKER_SELECT },
+      },
+    });
+
+    // Chat for the new pairing
+    const chat = await this.prisma.db.chat.create({
+      data: { applicationId: application.id, employerId: job.employerId, workerId },
+      include: {
+        employer: { select: { id: true, fullName: true, avatarUrl: true } },
+        worker:   { select: { id: true, fullName: true, avatarUrl: true } },
+      },
+    });
+
+    // Fill the slot + charge the employer (idempotent).
+    const charge = await this.coins.chargeForFilledSlot(application.id);
+
+    this.notifications
+      .notify(job.employerId, {
+        type:  'SHIFT_CONFIRMED',
+        title: 'עובד הצטרף למשמרת',
+        body:  `${application.worker?.fullName ?? 'עובד'} הצטרף ל"${job.title}" דרך קישור ההזמנה`,
+        jobId: job.id, applicationId: application.id,
+      })
+      .catch(() => { /* fire-and-forget */ });
+
+    this.broadcastToEmployer(job.employerId, 'application-update', {
+      applicationId: application.id, kind: 'joined',
+    }).catch(() => { /* fire-and-forget */ });
+
+    return { application, chat, charge };
   }
 
   // PATCH /jobs/:id/cancel — employer cancels an OPEN job (System 4).

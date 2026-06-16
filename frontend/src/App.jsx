@@ -476,6 +476,7 @@ export default function App() {
         onRequestRating={() => refreshPendingRatings({ autoOpen: true })}
         onRepost={handleRepost}
         onOpenNotifications={() => withAuth(() => setNotifOpen(true))()}
+        onSessionRefresh={() => getMe().then(handleUserUpdate).catch(() => {})}
         unreadCount={unreadCount}
       />
     </motion.div>

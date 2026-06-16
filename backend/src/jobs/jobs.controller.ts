@@ -61,6 +61,21 @@ export class JobsController {
     return this.jobsService.claimReopened(appId, req.user.sub);
   }
 
+  // GET /api/jobs/invite/:token — public preview of a shared multi-worker shift
+  // Must come BEFORE :id so "invite" isn't matched as an id
+  @Get('invite/:token')
+  getInvite(@Param('token') token: string) {
+    return this.jobsService.getByInviteToken(token);
+  }
+
+  // POST /api/jobs/join/:token — worker joins a multi-worker shift via link
+  @UseGuards(JwtAuthGuard)
+  @Post('join/:token')
+  @HttpCode(HttpStatus.OK)
+  joinViaInvite(@Req() req: any, @Param('token') token: string) {
+    return this.jobsService.joinViaInvite(token, req.user.sub, req.user.role);
+  }
+
   // GET /api/jobs/:id
   @Get(':id')
   findOne(@Param('id') id: string) {

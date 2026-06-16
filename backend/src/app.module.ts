@@ -9,6 +9,9 @@ import { ScoreModule }         from './score/score.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RatingsModule }       from './ratings/ratings.module';
 import { OffersModule }        from './offers/offers.module';
+import { StripeModule }        from './stripe/stripe.module';
+import { CoinsModule }         from './coins/coins.module';
+import { PaymentsModule }      from './payments/payments.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { OffersModule }        from './offers/offers.module';
     NotificationsModule,
     RatingsModule,
     OffersModule,
+    StripeModule,
+    CoinsModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

@@ -44,6 +44,26 @@ enum OfferStatus {
   DECLINED
 }
 
+// Coin ledger entry kind. The ledger is append-only; every balance change on
+// a user has exactly one matching CoinTransaction row.
+enum CoinTxnType {
+  PURCHASE        // bought a coin package via Stripe
+  JOB_CHARGE      // charged when a worker confirmed arrival (a slot was filled)
+  REFERRAL_BONUS  // referral reward (to referrer and to the referred employer)
+  ADJUSTMENT      // manual admin correction
+  REFUND          // reversal of a previous charge
+}
+
+// Mirrors the subset of Stripe subscription statuses we act on.
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  TRIALING
+  UNPAID
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -76,6 +96,25 @@ model User {
   isPro       Boolean @default(false)
   proFeatures Json    @default("{}") // future flags, e.g. { "prioritySupport": true }
 
+  // ── Coins wallet (employer side) ──
+  // 1 coin = ₪1 of internal value (never surfaced to the employer as ₪).
+  // Balance is mutated only by the backend (service-role) via CoinsService;
+  // every change writes a matching CoinTransaction row.
+  coinsBalance Int @default(0)
+
+  // ── Pro subscription (Stripe) ──
+  proExpiresAt         DateTime?            // next billing date while active; past = lapsed
+  stripeCustomerId     String?             @unique // Stripe Customer, reused across payments
+  stripeSubscriptionId String?                     // active Pro subscription, if any
+  subscriptionStatus   SubscriptionStatus?
+
+  // ── Referral program (employer → employer) ──
+  // Each employer has a unique code. When a referred employer posts their
+  // FIRST job, both sides receive 20 coins (paid once, idempotent).
+  referralCode     String?  @unique
+  referredById     String?                 // the employer who referred this one
+  firstJobPostedAt DateTime?               // set on first job → triggers referral payout
+
   // ── Direct hiring (worker side) ──
   availability Json? // e.g. { "open": true, "days": ["א","ב"], "hours": "16:00-22:00", "note": "..." }
 
@@ -97,6 +136,13 @@ model User {
   offersSent      JobOffer[]     @relation("OffersSent")
   offersReceived  JobOffer[]     @relation("OffersReceived")
   availabilitySlots AvailabilitySlot[]
+
+  // Coins & referrals
+  coinTransactions CoinTransaction[]
+  referredBy       User?       @relation("EmployerReferrals", fields: [referredById], references: [id])
+  referredEmployers User[]     @relation("EmployerReferrals")
+  referralsMade    Referral[]  @relation("ReferralReferrer")
+  referralReceived Referral?   @relation("ReferralReferred")
 
   @@map("users")
 }
@@ -129,6 +175,15 @@ model Job {
   description String?
   pay         Float    // hourly rate (NIS)
   requiredWorkers Int  @default(1) // how many workers the employer needs
+
+  // ── Multi-worker filling (Pro) ──
+  // A job is "filled" only when filledSlots === requiredWorkers. Each filled
+  // slot (a worker confirming arrival) charges the employer separately.
+  filledSlots Int      @default(0)
+  filledAt    DateTime?           // set when the LAST required slot is filled
+  // Shared invite link token: workers opening it join the shift directly.
+  inviteToken String?  @unique
+
   address     String
   lat         Float
   lng         Float
@@ -169,6 +224,13 @@ model Application {
   // these applicants ARE re-invited by the no-show fallback flow; manually
   // rejected ones are not.
   autoRejected Boolean @default(false)
+
+  // ── Coin charge (this application = one filled slot) ──
+  // Set when arrival is confirmed and the employer is charged. coinCharged
+  // makes the charge idempotent (a slot is never billed twice).
+  coinCharged   Boolean   @default(false)
+  coinChargedAt DateTime?
+  coinAmount    Int?      // coins charged for this slot (18 Pro / 20 Free)
 
   // ── Reliability timestamps ──
   approvedAt         DateTime? // when the employer approved (basis for response-speed)
@@ -277,4 +339,66 @@ model Message {
   sender User @relation("SentMessages", fields: [senderId], references: [id])
 
   @@map("messages")
+}
+
+// ── Coin packages (purchasable bundles) ──────────────────────────────────────
+// priceIls is stored in AGOROT (integer): 2500 = ₪25.00.
+model CoinPackage {
+  id           String   @id @default(uuid())
+  name         String   // 'Starter' | 'Standard' | 'Pro Pack' | 'Business'
+  coins        Int      // coins credited on purchase
+  priceIls     Int      // price in agorot (2500 = ₪25)
+  stripePriceId String? // optional pre-created Stripe Price (future use)
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  transactions CoinTransaction[]
+
+  @@map("coin_packages")
+}
+
+// ── Coin ledger (append-only) ────────────────────────────────────────────────
+// One row per balance change. `amount` is signed: positive = credit,
+// negative = debit. `balanceAfter` snapshots the wallet right after the change.
+model CoinTransaction {
+  id            String      @id @default(uuid())
+  userId        String
+  type          CoinTxnType
+  amount        Int         // +credit / -debit, in coins
+  balanceAfter  Int         // wallet balance immediately after applying `amount`
+  jobId         String?     // set for JOB_CHARGE / REFUND
+  applicationId String?     // the specific filled slot, for JOB_CHARGE
+  packageId     String?     // set for PURCHASE
+  stripePaymentIntentId String? // Stripe PI id — also the purchase idempotency key
+  description   String?
+  createdAt     DateTime    @default(now())
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package CoinPackage? @relation(fields: [packageId], references: [id])
+
+  // One ledger row per Stripe PaymentIntent → webhook is idempotent.
+  @@unique([stripePaymentIntentId])
+  @@index([userId, createdAt])
+  @@map("coin_transactions")
+}
+
+// ── Referrals (employer → employer) ──────────────────────────────────────────
+// Created when a referred employer signs up with a referrer's code. Paid out
+// (20 coins to each side) exactly once, when the referred employer posts their
+// first job.
+model Referral {
+  id          String    @id @default(uuid())
+  referrerId  String    // employer who shared their code
+  referredId  String    @unique // employer who used it (referred once only)
+  bonusCoins  Int       @default(20)
+  paidOut     Boolean   @default(false)
+  paidOutAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  referrer User @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred User @relation("ReferralReferred", fields: [referredId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId])
+  @@map("referrals")
 }

@@ -32,6 +32,10 @@ const USER_SELECT = {
   isPro:         true,
   proFeatures:   true,
   availability:  true,
+  coinsBalance:  true,
+  proExpiresAt:  true,
+  subscriptionStatus: true,
+  referralCode:  true,
   createdAt:     true,
 } as const;
 
